@@ -44,3 +44,32 @@ export const saveStats = async (sessionData) => {
     throw error.response ? error.response.data : new Error('Network error');
   }
 };
+
+// Function to reset stats for testing
+export const resetStats = async () => {
+  try {
+    // Define default stats
+    const defaultStats = {
+      averageWpm: 0,
+      accuracy: 0,
+      practiceMinutes: 0,
+      currentStreak: 0,
+      totalSessions: 0,
+      recentSessions: []
+    };
+
+    // Send request to update stats file
+    const response = await fetch(`${API_URL}/reset-stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(defaultStats),
+    });
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error resetting stats:', error);
+    throw error;
+  }
+};

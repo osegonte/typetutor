@@ -35,7 +35,7 @@ if not os.path.exists(STATS_FILE):
         "recentSessions": []
     }
     with open(STATS_FILE, 'w') as f:
-        json.dump(default_stats, f)
+        json.dump(default_stats, f, indent=2)
 
 @app.route('/api/pdf-support', methods=['GET'])
 def get_pdf_support():
@@ -219,15 +219,26 @@ def save_user_stats():
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Read existing stats
-        with open(STATS_FILE, 'r') as f:
-            stats = json.load(f)
+        try:
+            with open(STATS_FILE, 'r') as f:
+                stats = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            # If file doesn't exist or is corrupted, create a new stats object
+            stats = {
+                "averageWpm": 0,
+                "accuracy": 0,
+                "practiceMinutes": 0,
+                "currentStreak": 0,
+                "totalSessions": 0,
+                "recentSessions": []
+            }
         
         # Add the new session to recent sessions
         session_data = {
             'date': data.get('timestamp', datetime.now().isoformat()),
             'duration': f"{int(data['duration'] / 60)}m {int(data['duration'] % 60)}s",
-            'wpm': data['wpm'],
-            'accuracy': data['accuracy'],
+            'wpm': int(data['wpm']),  # Ensure integer values
+            'accuracy': int(data['accuracy']),  # Ensure integer values
             'mode': data.get('itemType', 'Practice')
         }
         
@@ -240,29 +251,44 @@ def save_user_stats():
         total_sessions = stats.get('totalSessions', 0) + 1
         stats['totalSessions'] = total_sessions
         
-        # Update average WPM
+        # Update average WPM with proper weighting
+        # Calculate total WPM across all sessions, then divide by total sessions
         current_avg_wpm = stats.get('averageWpm', 0)
-        total_wpm = (current_avg_wpm * (total_sessions - 1)) + data['wpm']
-        stats['averageWpm'] = round(total_wpm / total_sessions)
+        if current_avg_wpm == 0 and total_sessions == 1:
+            # First session
+            stats['averageWpm'] = data['wpm']
+        else:
+            # Apply proper weighted average formula
+            total_wpm = (current_avg_wpm * (total_sessions - 1)) + data['wpm']
+            stats['averageWpm'] = round(total_wpm / total_sessions)
         
-        # Update average accuracy
+        # Update average accuracy with proper weighting
         current_accuracy = stats.get('accuracy', 0)
-        total_accuracy = (current_accuracy * (total_sessions - 1)) + data['accuracy']
-        stats['accuracy'] = round(total_accuracy / total_sessions)
+        if current_accuracy == 0 and total_sessions == 1:
+            # First session
+            stats['accuracy'] = data['accuracy']
+        else:
+            # Apply proper weighted average formula
+            total_accuracy = (current_accuracy * (total_sessions - 1)) + data['accuracy']
+            stats['accuracy'] = round(total_accuracy / total_sessions)
         
-        # Update practice minutes
-        stats['practiceMinutes'] = stats.get('practiceMinutes', 0) + round(data['duration'] / 60)
+        # Update practice minutes (convert seconds to minutes)
+        minutes_practiced = round(data['duration'] / 60)
+        stats['practiceMinutes'] = stats.get('practiceMinutes', 0) + minutes_practiced
         
         # Update streak (simplified logic)
         stats['currentStreak'] = stats.get('currentStreak', 0) + 1
         
-        # Save updated stats
+        # Save updated stats with proper formatting
         with open(STATS_FILE, 'w') as f:
-            json.dump(stats, f)
+            json.dump(stats, f, indent=2)
+        
+        app.logger.info(f"Stats saved successfully: {stats}")
         
         return jsonify({
             'success': True,
-            'message': 'Statistics saved successfully'
+            'message': 'Statistics saved successfully',
+            'updated_stats': stats  # Return the updated stats
         })
     except Exception as e:
         error_traceback = traceback.format_exc()
@@ -273,6 +299,88 @@ def save_user_stats():
             'error': str(e),
             'traceback': error_traceback,
             'message': 'Error saving statistics.'
+        }), 500
+
+@app.route('/api/reset-stats', methods=['POST'])
+def reset_stats():
+    """Reset user statistics to default values (for testing/debugging purposes)"""
+    try:
+        data = request.json
+        if not data:
+            # Use default stats if no data provided
+            data = {
+                "averageWpm": 0,
+                "accuracy": 0,
+                "practiceMinutes": 0,
+                "currentStreak": 0,
+                "totalSessions": 0,
+                "recentSessions": []
+            }
+            
+        # Write the default stats to the file
+        with open(STATS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        app.logger.info(f"Stats reset to default values: {data}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Statistics reset successfully',
+            'stats': data
+        })
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        app.logger.error(f"Error resetting stats: {str(e)}")
+        app.logger.error(f"Traceback: {error_traceback}")
+        
+        return jsonify({
+            'error': str(e),
+            'traceback': error_traceback,
+            'message': 'Error resetting statistics.'
+        }), 500
+
+@app.route('/api/debug-stats', methods=['GET'])
+def debug_stats():
+    """Return detailed information about the stats file and its contents"""
+    try:
+        stats_info = {
+            'stats_file_path': STATS_FILE,
+            'stats_file_exists': os.path.exists(STATS_FILE),
+            'stats_file_size': os.path.getsize(STATS_FILE) if os.path.exists(STATS_FILE) else 0,
+            'stats_file_permissions': oct(os.stat(STATS_FILE).st_mode & 0o777) if os.path.exists(STATS_FILE) else 'N/A',
+            'stats_file_owner': os.stat(STATS_FILE).st_uid if os.path.exists(STATS_FILE) else 'N/A',
+        }
+        
+        # Try to read the contents of the stats file
+        if os.path.exists(STATS_FILE):
+            try:
+                with open(STATS_FILE, 'r') as f:
+                    raw_content = f.read()
+                    stats_info['raw_content'] = raw_content
+                    
+                    try:
+                        parsed_content = json.loads(raw_content)
+                        stats_info['parsed_content'] = parsed_content
+                        stats_info['is_valid_json'] = True
+                    except json.JSONDecodeError as e:
+                        stats_info['is_valid_json'] = False
+                        stats_info['json_error'] = str(e)
+            except Exception as e:
+                stats_info['read_error'] = str(e)
+        
+        # Check if the data directory is writable
+        stats_info['data_dir_writable'] = os.access(os.path.dirname(STATS_FILE), os.W_OK)
+        
+        return jsonify(stats_info)
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        app.logger.error(f"Error debugging stats: {str(e)}")
+        app.logger.error(f"Traceback: {error_traceback}")
+        
+        return jsonify({
+            'error': str(e),
+            'traceback': error_traceback,
+            'message': 'Error debugging statistics.'
         }), 500
 
 # Add a debug endpoint to check file paths and permissions
