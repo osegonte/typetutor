@@ -35,3 +35,12 @@ export const getStats = async () => {
     throw error.response ? error.response.data : new Error('Network error');
   }
 };
+
+export const saveStats = async (sessionData) => {
+  try {
+    const response = await axios.post(`${API_URL}/save-stats`, sessionData);
+    return response.data;
+  } catch (error) {
+    throw error.response ? error.response.data : new Error('Network error');
+  }
+};

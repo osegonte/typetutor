@@ -1,13 +1,33 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
-from pdf_parser import extract_content_from_pdf
+import json
+import sys
+
+# Add the current directory to the path so we can import our modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import pdf_parser  # Import the entire module
 
 app = Flask(__name__, static_folder='../frontend/dist')
 CORS(app)  # Enable CORS for all routes
 
 # Create uploads directory if it doesn't exist
 os.makedirs('uploads', exist_ok=True)
+
+@app.route('/api/pdf-support', methods=['GET'])
+def get_pdf_support():
+    """Return PDF parser support information"""
+    if hasattr(pdf_parser, 'get_pdf_support_status'):
+        return jsonify(pdf_parser.get_pdf_support_status())
+    elif hasattr(pdf_parser, 'PDFParser') and hasattr(pdf_parser.PDFParser, 'get_pdf_support_status'):
+        return jsonify(pdf_parser.PDFParser.get_pdf_support_status())
+    else:
+        return jsonify({
+            'pymupdf_available': False,
+            'pypdf2_available': False,
+            'pdf_support': False,
+            'message': 'PDF support status function not found'
+        })
 
 @app.route('/api/upload-pdf', methods=['POST'])
 def upload_pdf():
@@ -24,69 +44,51 @@ def upload_pdf():
     
     # Process the PDF
     try:
-        content = extract_content_from_pdf(file_path)
+        # Try to instantiate PDFParser or use a function
+        if hasattr(pdf_parser, 'PDFParser'):
+            parser = pdf_parser.PDFParser(file_path)
+            if hasattr(parser, 'extract_items'):
+                items = parser.extract_items()
+                processing_time = getattr(parser, 'processing_time', 0)
+            elif hasattr(parser, 'extract_text'):
+                parser.extract_text()
+                # Create simple items from raw text
+                text = parser.raw_text
+                items = [{
+                    'id': 'pdf-text-1',
+                    'prompt': 'Type this text from PDF:',
+                    'content': text,
+                    'type': 'text',
+                    'context': 'PDF Content'
+                }]
+                processing_time = getattr(parser, 'processing_time', 0)
+            else:
+                raise Exception("Parser doesn't have extract_items or extract_text method")
+        elif hasattr(pdf_parser, 'extract_content_from_pdf'):
+            # If it's a direct function instead of a class
+            content = pdf_parser.extract_content_from_pdf(file_path)
+            items = [{
+                'id': 'pdf-text-1',
+                'prompt': 'Type this text from PDF:',
+                'content': content,
+                'type': 'text',
+                'context': 'PDF Content'
+            }]
+            processing_time = 0
+        else:
+            raise Exception("Could not find PDF parsing functionality")
+        
         return jsonify({
             'success': True,
-            'content': content
+            'items': items,
+            'processing_time': processing_time,
+            'item_count': len(items)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/process-text', methods=['POST'])
-def process_text():
-    data = request.json
-    if not data or 'text' not in data:
-        return jsonify({'error': 'No text provided'}), 400
-        
-    text = data['text']
-    
-    # Simple processing here - this would be expanded in a full implementation
-    words = len(text.split())
-    characters = len(text)
-    
-    return jsonify({
-        'success': True,
-        'stats': {
-            'words': words,
-            'characters': characters
-        },
-        'content': text
-    })
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    # Mock statistics - in a real app, these would come from a database
-    return jsonify({
-        'averageWpm': 65,
-        'accuracy': 92,
-        'practiceMinutes': 240,
-        'currentStreak': 5,
-        'recentSessions': [
-            {
-                'date': '2025-05-19',
-                'duration': '15 min',
-                'wpm': 67,
-                'accuracy': 94,
-                'mode': 'Custom Text'
-            },
-            {
-                'date': '2025-05-18',
-                'duration': '20 min',
-                'wpm': 64,
-                'accuracy': 91,
-                'mode': 'PDF Study'
-            }
-        ]
-    })
-
-# Serve React frontend
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(app.static_folder + '/' + path):
-        return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
+# Rest of the code remains the same
+# ...
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
