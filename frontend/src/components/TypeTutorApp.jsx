@@ -69,11 +69,15 @@ const TypeTutorApp = () => {
 
 const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingInProgress, setTypingInProgress }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Reset any previous errors
+    setErrorMessage(null);
+    
     // Create loading indicator
     setIsLoading(true);
 
@@ -99,14 +103,18 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
           // Show success message
           alert(`Successfully extracted ${data.items.length} study items from PDF!`);
         } else {
-          alert('No content could be extracted from the PDF.');
+          setErrorMessage('No content could be extracted from the PDF.');
         }
       } else {
-        alert(`Error: ${data.error || 'Failed to process PDF'}`);
+        // Show detailed error message from the backend
+        setErrorMessage(`Error: ${data.error || 'Failed to process PDF'}`);
+        if (data.traceback) {
+          console.error('Backend error details:', data.traceback);
+        }
       }
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Error uploading file. Please try again.');
+      setErrorMessage('Network error while uploading file. Please check if the backend server is running.');
     } finally {
       setIsLoading(false);
     }
@@ -164,6 +172,13 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
               Browse Files
             </button>
           </div>
+          
+          {/* Display error message if any */}
+          {errorMessage && (
+            <div className={`mt-2 p-2 text-sm text-red-500 bg-red-100 dark:bg-red-900 dark:text-red-200 rounded-md`}>
+              {errorMessage}
+            </div>
+          )}
         </div>
 
         {/* Custom Text */}

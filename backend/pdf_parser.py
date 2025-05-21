@@ -4,6 +4,7 @@ import time
 import os
 import traceback
 import logging
+import sys
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -19,6 +20,7 @@ class PDFParser:
         self.raw_text = ""
         self.items = []
         self.processing_time = 0
+        logger.info(f"Initializing PDFParser with file: {file_path}")
         
     def extract_text(self):
         """Extract text content from a PDF file with timing measurement"""
@@ -29,11 +31,27 @@ class PDFParser:
             
             # Check if file exists
             if not os.path.exists(self.file_path):
-                raise FileNotFoundError(f"PDF file not found at path: {self.file_path}")
+                error_msg = f"PDF file not found at path: {self.file_path}"
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
             
             # Check if file is readable
             if not os.access(self.file_path, os.R_OK):
-                raise PermissionError(f"PDF file is not readable: {self.file_path}")
+                error_msg = f"PDF file is not readable: {self.file_path}"
+                logger.error(error_msg)
+                raise PermissionError(error_msg)
+            
+            # Check if file is a valid PDF (sniff the first few bytes)
+            try:
+                with open(self.file_path, 'rb') as f:
+                    header = f.read(5)
+                    if header != b'%PDF-':
+                        error_msg = f"File is not a valid PDF: {self.file_path}"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+            except Exception as e:
+                logger.error(f"Error checking PDF header: {str(e)}")
+                # Continue trying to process anyway
             
             with open(self.file_path, 'rb') as file:
                 try:
@@ -51,12 +69,22 @@ class PDFParser:
                             page = reader.pages[page_num]
                             page_text = page.extract_text()
                             
-                            # Add page number for better context
-                            self.raw_text += f"--- Page {page_num + 1} ---\n{page_text}\n\n"
+                            if page_text:
+                                # Add page number for better context
+                                self.raw_text += f"--- Page {page_num + 1} ---\n{page_text}\n\n"
+                            else:
+                                self.raw_text += f"--- Page {page_num + 1} ---\n[No text found on this page]\n\n"
+                                logger.warning(f"No text found on page {page_num + 1}")
                         except Exception as e:
                             # Log the error but continue with other pages
                             logger.error(f"Error extracting text from page {page_num + 1}: {str(e)}")
-                            self.raw_text += f"--- Page {page_num + 1} ---\n[Error extracting text from this page]\n\n"
+                            self.raw_text += f"--- Page {page_num + 1} ---\n[Error extracting text from this page: {str(e)}]\n\n"
+                except PyPDF2.errors.PdfReadError as e:
+                    error_traceback = traceback.format_exc()
+                    error_msg = f"PDF read error: {str(e)}. This may be a corrupted or password-protected PDF."
+                    logger.error(error_msg)
+                    logger.error(f"Traceback: {error_traceback}")
+                    raise Exception(error_msg)
                 except Exception as e:
                     error_traceback = traceback.format_exc()
                     logger.error(f"Error creating PDF reader: {str(e)}")
@@ -178,6 +206,8 @@ def get_pdf_support_status():
             'pymupdf_available': False,  # Not using PyMuPDF in this implementation
             'pypdf2_available': True,    # Using PyPDF2
             'pdf_support': True,
+            'version': sys.version,
+            'pypdf2_version': PyPDF2.__version__,
             'message': f'PDF support is available using PyPDF2 version {PyPDF2.__version__}'
         }
     except ImportError:
@@ -185,5 +215,6 @@ def get_pdf_support_status():
             'pymupdf_available': False,
             'pypdf2_available': False,
             'pdf_support': False,
+            'version': sys.version,
             'message': 'PyPDF2 is not installed. PDF support is unavailable.'
         }

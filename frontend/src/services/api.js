@@ -1,6 +1,8 @@
+// Update your frontend/src/services/api.js file
+
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:5000/api';  
 
 export const uploadPDF = async (file) => {
   const formData = new FormData();
@@ -17,6 +19,8 @@ export const uploadPDF = async (file) => {
     throw error.response ? error.response.data : new Error('Network error');
   }
 };
+
+// The rest of your API functions remain the same
 
 export const processText = async (text) => {
   try {

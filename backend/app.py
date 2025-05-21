@@ -68,66 +68,104 @@ def upload_pdf():
             app.logger.error("No selected file")
             return jsonify({'error': 'No selected file'}), 400
         
+        if not file.filename.lower().endswith('.pdf'):
+            app.logger.error("Uploaded file is not a PDF")
+            return jsonify({'error': 'Uploaded file must be a PDF'}), 400
+        
         # Debug information
         app.logger.info(f"Received file: {file.filename}")
+        
+        # Ensure the uploads directory exists
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        # Check directory permissions
+        if not os.access(uploads_dir, os.W_OK):
+            error_msg = f"Uploads directory is not writable: {uploads_dir}"
+            app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
         
         # Create full path with absolute directory
         file_path = os.path.join(uploads_dir, file.filename)
         app.logger.info(f"Saving file to: {file_path}")
         
         # Save the uploaded file
-        file.save(file_path)
+        try:
+            file.save(file_path)
+        except Exception as e:
+            error_msg = f"Failed to save file: {str(e)}"
+            app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
         
         # Check if the file was saved successfully
         if not os.path.exists(file_path):
-            app.logger.error(f"Failed to save file at {file_path}")
-            return jsonify({'error': 'Failed to save the uploaded file'}), 500
+            error_msg = f"Failed to save file at {file_path}"
+            app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
         
         app.logger.info("File saved successfully")
         
         # Process the PDF
-        # Try to instantiate PDFParser
-        if hasattr(pdf_parser, 'PDFParser'):
-            app.logger.info("Using PDFParser class")
-            parser = pdf_parser.PDFParser(file_path)
-            
-            if hasattr(parser, 'extract_items'):
-                app.logger.info("Extracting items from PDF")
-                items = parser.extract_items()
-                processing_time = getattr(parser, 'processing_time', 0)
-            elif hasattr(parser, 'extract_text'):
-                app.logger.info("Extracting text from PDF")
-                parser.extract_text()
-                # Create simple items from raw text
-                text = parser.raw_text
+        try:
+            # Try to instantiate PDFParser
+            if hasattr(pdf_parser, 'PDFParser'):
+                app.logger.info("Using PDFParser class")
+                parser = pdf_parser.PDFParser(file_path)
+                
+                if hasattr(parser, 'extract_items'):
+                    app.logger.info("Extracting items from PDF")
+                    items = parser.extract_items()
+                    processing_time = getattr(parser, 'processing_time', 0)
+                elif hasattr(parser, 'extract_text'):
+                    app.logger.info("Extracting text from PDF")
+                    text = parser.extract_text()
+                    # Create simple items from raw text
+                    items = [{
+                        'id': 'pdf-text-1',
+                        'prompt': 'Type this text from PDF:',
+                        'content': text,
+                        'type': 'text',
+                        'context': 'PDF Content'
+                    }]
+                    processing_time = getattr(parser, 'processing_time', 0)
+                else:
+                    err_msg = "Parser doesn't have extract_items or extract_text method"
+                    app.logger.error(err_msg)
+                    return jsonify({'error': err_msg}), 500
+            elif hasattr(pdf_parser, 'extract_content_from_pdf'):
+                app.logger.info("Using extract_content_from_pdf function")
+                # If it's a direct function instead of a class
+                content = pdf_parser.extract_content_from_pdf(file_path)
                 items = [{
                     'id': 'pdf-text-1',
                     'prompt': 'Type this text from PDF:',
-                    'content': text,
+                    'content': content,
                     'type': 'text',
                     'context': 'PDF Content'
                 }]
-                processing_time = getattr(parser, 'processing_time', 0)
+                processing_time = 0
             else:
-                err_msg = "Parser doesn't have extract_items or extract_text method"
+                err_msg = "Could not find PDF parsing functionality"
                 app.logger.error(err_msg)
                 return jsonify({'error': err_msg}), 500
-        elif hasattr(pdf_parser, 'extract_content_from_pdf'):
-            app.logger.info("Using extract_content_from_pdf function")
-            # If it's a direct function instead of a class
-            content = pdf_parser.extract_content_from_pdf(file_path)
-            items = [{
-                'id': 'pdf-text-1',
-                'prompt': 'Type this text from PDF:',
-                'content': content,
-                'type': 'text',
-                'context': 'PDF Content'
-            }]
-            processing_time = 0
-        else:
-            err_msg = "Could not find PDF parsing functionality"
-            app.logger.error(err_msg)
-            return jsonify({'error': err_msg}), 500
+        except Exception as e:
+            error_traceback = traceback.format_exc()
+            error_msg = f"Error processing PDF: {str(e)}"
+            app.logger.error(error_msg)
+            app.logger.error(f"Traceback: {error_traceback}")
+            
+            # Try to remove the file if it exists to clean up
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    app.logger.info(f"Removed problematic file: {file_path}")
+            except Exception as clean_error:
+                app.logger.error(f"Error removing file: {str(clean_error)}")
+            
+            return jsonify({
+                'error': str(e),
+                'traceback': error_traceback,
+                'message': 'Error processing the PDF file. See detailed error information.'
+            }), 500
         
         app.logger.info(f"Successfully processed PDF. Extracted {len(items)} items.")
         
@@ -140,7 +178,8 @@ def upload_pdf():
     except Exception as e:
         # Get detailed traceback
         error_traceback = traceback.format_exc()
-        app.logger.error(f"Error processing PDF: {str(e)}")
+        error_msg = f"Error in upload_pdf route: {str(e)}"
+        app.logger.error(error_msg)
         app.logger.error(f"Traceback: {error_traceback}")
         
         return jsonify({
@@ -218,11 +257,24 @@ def save_user_stats():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        app.logger.info(f"Received stats data: {data}")
+        
+        # Ensure numeric fields are valid numbers
+        try:
+            data['wpm'] = int(data['wpm'])
+            data['accuracy'] = int(data['accuracy'])
+            data['duration'] = float(data['duration'])  # Duration in seconds
+        except (ValueError, TypeError) as e:
+            app.logger.error(f"Invalid numeric data: {e}")
+            return jsonify({'error': f'Invalid numeric data: {e}'}), 400
+        
         # Read existing stats
         try:
             with open(STATS_FILE, 'r') as f:
                 stats = json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
+                app.logger.info(f"Loaded existing stats: {stats}")
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            app.logger.warning(f"Stats file issue: {e}, creating new stats object")
             # If file doesn't exist or is corrupted, create a new stats object
             stats = {
                 "averageWpm": 0,
@@ -237,10 +289,12 @@ def save_user_stats():
         session_data = {
             'date': data.get('timestamp', datetime.now().isoformat()),
             'duration': f"{int(data['duration'] / 60)}m {int(data['duration'] % 60)}s",
-            'wpm': int(data['wpm']),  # Ensure integer values
-            'accuracy': int(data['accuracy']),  # Ensure integer values
+            'wpm': int(data['wpm']),
+            'accuracy': int(data['accuracy']),
             'mode': data.get('itemType', 'Practice')
         }
+        
+        app.logger.info(f"Created session data: {session_data}")
         
         # Update recent sessions (keep last 5)
         stats['recentSessions'].insert(0, session_data)
@@ -252,7 +306,6 @@ def save_user_stats():
         stats['totalSessions'] = total_sessions
         
         # Update average WPM with proper weighting
-        # Calculate total WPM across all sessions, then divide by total sessions
         current_avg_wpm = stats.get('averageWpm', 0)
         if current_avg_wpm == 0 and total_sessions == 1:
             # First session
@@ -272,18 +325,23 @@ def save_user_stats():
             total_accuracy = (current_accuracy * (total_sessions - 1)) + data['accuracy']
             stats['accuracy'] = round(total_accuracy / total_sessions)
         
-        # Update practice minutes (convert seconds to minutes)
+        # Update practice minutes (convert seconds to minutes and ensure it's an integer)
         minutes_practiced = round(data['duration'] / 60)
         stats['practiceMinutes'] = stats.get('practiceMinutes', 0) + minutes_practiced
         
         # Update streak (simplified logic)
         stats['currentStreak'] = stats.get('currentStreak', 0) + 1
         
-        # Save updated stats with proper formatting
-        with open(STATS_FILE, 'w') as f:
-            json.dump(stats, f, indent=2)
+        app.logger.info(f"Updated stats: {stats}")
         
-        app.logger.info(f"Stats saved successfully: {stats}")
+        # Save updated stats with proper formatting
+        try:
+            with open(STATS_FILE, 'w') as f:
+                json.dump(stats, f, indent=2)
+                app.logger.info(f"Stats saved successfully to {STATS_FILE}")
+        except Exception as e:
+            app.logger.error(f"Error writing stats file: {e}")
+            return jsonify({'error': f'Error writing stats file: {e}'}), 500
         
         return jsonify({
             'success': True,
