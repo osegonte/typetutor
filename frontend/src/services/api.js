@@ -1,51 +1,76 @@
-// Update your frontend/src/services/api.js file
-
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';  
+// Use environment variable if available, otherwise default to localhost
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// Create an axios instance with error handling
+const apiClient = axios.create({
+  baseURL: API_URL
+});
+
+// Add response interceptor for consistent error handling
+apiClient.interceptors.response.use(
+  response => response,
+  error => {
+    // Format error response consistently
+    const errorResponse = {
+      error: error.message,
+      status: error.response?.status || 500
+    };
+    
+    // Include any additional error details from the server
+    if (error.response?.data) {
+      errorResponse.details = error.response.data;
+    }
+    
+    return Promise.reject(errorResponse);
+  }
+);
 
 export const uploadPDF = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   
   try {
-    const response = await axios.post(`${API_URL}/upload-pdf`, formData, {
+    const response = await apiClient.post('/upload-pdf', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error('Network error');
+    console.error('PDF upload error:', error);
+    throw error;
   }
 };
 
-// The rest of your API functions remain the same
-
 export const processText = async (text) => {
   try {
-    const response = await axios.post(`${API_URL}/process-text`, { text });
+    const response = await apiClient.post('/process-text', { text });
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error('Network error');
+    console.error('Text processing error:', error);
+    throw error;
   }
 };
 
 export const getStats = async () => {
   try {
-    const response = await axios.get(`${API_URL}/stats`);
+    const response = await apiClient.get('/stats');
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error('Network error');
+    console.error('Get stats error:', error);
+    throw error;
   }
 };
 
 export const saveStats = async (sessionData) => {
   try {
-    const response = await axios.post(`${API_URL}/save-stats`, sessionData);
+    const response = await apiClient.post('/save-stats', sessionData);
     return response.data;
   } catch (error) {
-    throw error.response ? error.response.data : new Error('Network error');
+    console.error('Save stats error:', error);
+    throw error;
   }
 };
 
@@ -59,21 +84,15 @@ export const resetStats = async () => {
       practiceMinutes: 0,
       currentStreak: 0,
       totalSessions: 0,
+      lastSessionDate: null,
       recentSessions: []
     };
 
     // Send request to update stats file
-    const response = await fetch(`${API_URL}/reset-stats`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(defaultStats),
-    });
-    
-    return await response.json();
+    const response = await apiClient.post('/reset-stats', defaultStats);
+    return response.data;
   } catch (error) {
-    console.error('Error resetting stats:', error);
+    console.error('Reset stats error:', error);
     throw error;
   }
 };

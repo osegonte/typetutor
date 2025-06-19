@@ -6,13 +6,23 @@ import sys
 import time
 from datetime import datetime, timedelta
 import traceback  # Import for detailed error tracking
+import math  # For better time calculations
 
 # Add the current directory to the path so we can import our modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import pdf_parser  # Import the entire module
 
 app = Flask(__name__, static_folder='../frontend/dist')
-CORS(app)  # Enable CORS for all routes
+
+# Enable CORS only for specific origins
+allowed_origins = [
+    "http://localhost:5173",  # Development frontend
+    "http://localhost:5000",  # Backend when served directly
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5000"
+    # Add your production domain here when deploying
+]
+CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
 # Create necessary directories if they don't exist
 uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads')
@@ -20,6 +30,15 @@ data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data'
 
 os.makedirs(uploads_dir, exist_ok=True)
 os.makedirs(data_dir, exist_ok=True)
+
+# Ensure directories are writable
+if not os.access(uploads_dir, os.W_OK):
+    app.logger.error(f"Uploads directory is not writable: {uploads_dir}")
+    raise PermissionError(f"Uploads directory is not writable: {uploads_dir}")
+
+if not os.access(data_dir, os.W_OK):
+    app.logger.error(f"Data directory is not writable: {data_dir}")
+    raise PermissionError(f"Data directory is not writable: {data_dir}")
 
 # Path to store user statistics
 STATS_FILE = os.path.join(data_dir, 'user_stats.json')
@@ -32,6 +51,7 @@ if not os.path.exists(STATS_FILE):
         "practiceMinutes": 0,
         "currentStreak": 0,
         "totalSessions": 0,
+        "lastSessionDate": None,
         "recentSessions": []
     }
     with open(STATS_FILE, 'w') as f:
@@ -75,15 +95,6 @@ def upload_pdf():
         # Debug information
         app.logger.info(f"Received file: {file.filename}")
         
-        # Ensure the uploads directory exists
-        os.makedirs(uploads_dir, exist_ok=True)
-        
-        # Check directory permissions
-        if not os.access(uploads_dir, os.W_OK):
-            error_msg = f"Uploads directory is not writable: {uploads_dir}"
-            app.logger.error(error_msg)
-            return jsonify({'error': error_msg}), 500
-        
         # Create full path with absolute directory
         file_path = os.path.join(uploads_dir, file.filename)
         app.logger.info(f"Saving file to: {file_path}")
@@ -104,47 +115,17 @@ def upload_pdf():
         
         app.logger.info("File saved successfully")
         
-        # Process the PDF
+        # Process the PDF - Simplified to use only the PDFParser class for consistency
         try:
-            # Try to instantiate PDFParser
             if hasattr(pdf_parser, 'PDFParser'):
                 app.logger.info("Using PDFParser class")
                 parser = pdf_parser.PDFParser(file_path)
                 
-                if hasattr(parser, 'extract_items'):
-                    app.logger.info("Extracting items from PDF")
-                    items = parser.extract_items()
-                    processing_time = getattr(parser, 'processing_time', 0)
-                elif hasattr(parser, 'extract_text'):
-                    app.logger.info("Extracting text from PDF")
-                    text = parser.extract_text()
-                    # Create simple items from raw text
-                    items = [{
-                        'id': 'pdf-text-1',
-                        'prompt': 'Type this text from PDF:',
-                        'content': text,
-                        'type': 'text',
-                        'context': 'PDF Content'
-                    }]
-                    processing_time = getattr(parser, 'processing_time', 0)
-                else:
-                    err_msg = "Parser doesn't have extract_items or extract_text method"
-                    app.logger.error(err_msg)
-                    return jsonify({'error': err_msg}), 500
-            elif hasattr(pdf_parser, 'extract_content_from_pdf'):
-                app.logger.info("Using extract_content_from_pdf function")
-                # If it's a direct function instead of a class
-                content = pdf_parser.extract_content_from_pdf(file_path)
-                items = [{
-                    'id': 'pdf-text-1',
-                    'prompt': 'Type this text from PDF:',
-                    'content': content,
-                    'type': 'text',
-                    'context': 'PDF Content'
-                }]
-                processing_time = 0
+                app.logger.info("Extracting items from PDF")
+                items = parser.extract_items()
+                processing_time = getattr(parser, 'processing_time', 0)
             else:
-                err_msg = "Could not find PDF parsing functionality"
+                err_msg = "PDFParser class not found in pdf_parser module"
                 app.logger.error(err_msg)
                 return jsonify({'error': err_msg}), 500
         except Exception as e:
@@ -163,8 +144,7 @@ def upload_pdf():
             
             return jsonify({
                 'error': str(e),
-                'traceback': error_traceback,
-                'message': 'Error processing the PDF file. See detailed error information.'
+                'message': 'Error processing the PDF file. Please try a different PDF.'
             }), 500
         
         app.logger.info(f"Successfully processed PDF. Extracted {len(items)} items.")
@@ -184,8 +164,7 @@ def upload_pdf():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
-            'message': 'Error processing the PDF file. See detailed error information.'
+            'message': 'Error processing the PDF file. Please try a different PDF.'
         }), 500
 
 @app.route('/api/process-text', methods=['POST'])
@@ -220,7 +199,6 @@ def process_text():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
             'message': 'Error processing the text input.'
         }), 500
 
@@ -239,7 +217,6 @@ def get_stats():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
             'message': 'Error retrieving statistics.'
         }), 500
 
@@ -282,12 +259,16 @@ def save_user_stats():
                 "practiceMinutes": 0,
                 "currentStreak": 0,
                 "totalSessions": 0,
+                "lastSessionDate": None,
                 "recentSessions": []
             }
         
         # Add the new session to recent sessions
+        today = datetime.now().date()
+        session_date = data.get('timestamp', datetime.now().isoformat())
+        
         session_data = {
-            'date': data.get('timestamp', datetime.now().isoformat()),
+            'date': session_date,
             'duration': f"{int(data['duration'] / 60)}m {int(data['duration'] % 60)}s",
             'wpm': int(data['wpm']),
             'accuracy': int(data['accuracy']),
@@ -325,12 +306,37 @@ def save_user_stats():
             total_accuracy = (current_accuracy * (total_sessions - 1)) + data['accuracy']
             stats['accuracy'] = round(total_accuracy / total_sessions)
         
-        # Update practice minutes (convert seconds to minutes and ensure it's an integer)
-        minutes_practiced = round(data['duration'] / 60)
+        # Update practice minutes - using Math.ceil to ensure even very short sessions count
+        # at least 1 minute (prevents rounding to 0)
+        minutes_practiced = math.ceil(data['duration'] / 60)
         stats['practiceMinutes'] = stats.get('practiceMinutes', 0) + minutes_practiced
         
-        # Update streak (simplified logic)
-        stats['currentStreak'] = stats.get('currentStreak', 0) + 1
+        # Update streak (improved logic for consecutive days)
+        last_session_date = stats.get('lastSessionDate')
+        if last_session_date:
+            try:
+                # Convert string date to datetime object
+                last_date = datetime.fromisoformat(last_session_date).date()
+                days_since_last = (today - last_date).days
+                
+                if days_since_last == 0:
+                    # Same day, keep streak
+                    pass
+                elif days_since_last == 1:
+                    # Consecutive day, increment streak
+                    stats['currentStreak'] = stats.get('currentStreak', 0) + 1
+                else:
+                    # Not consecutive, reset streak
+                    stats['currentStreak'] = 1
+            except (ValueError, TypeError):
+                # Date conversion failed, reset streak to be safe
+                stats['currentStreak'] = 1
+        else:
+            # First session ever
+            stats['currentStreak'] = 1
+        
+        # Save today's date for next streak calculation
+        stats['lastSessionDate'] = today.isoformat()
         
         app.logger.info(f"Updated stats: {stats}")
         
@@ -355,7 +361,6 @@ def save_user_stats():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
             'message': 'Error saving statistics.'
         }), 500
 
@@ -372,6 +377,7 @@ def reset_stats():
                 "practiceMinutes": 0,
                 "currentStreak": 0,
                 "totalSessions": 0,
+                "lastSessionDate": None,
                 "recentSessions": []
             }
             
@@ -393,7 +399,6 @@ def reset_stats():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
             'message': 'Error resetting statistics.'
         }), 500
 
@@ -437,7 +442,6 @@ def debug_stats():
         
         return jsonify({
             'error': str(e),
-            'traceback': error_traceback,
             'message': 'Error debugging statistics.'
         }), 500
 
@@ -455,7 +459,7 @@ def debug_info():
         'stats_file': STATS_FILE,
         'stats_file_exists': os.path.exists(STATS_FILE),
         'python_version': sys.version,
-        'pdf_parser_available': hasattr(pdf_parser, 'PDFParser') or hasattr(pdf_parser, 'extract_content_from_pdf'),
+        'pdf_parser_available': hasattr(pdf_parser, 'PDFParser'),
         'current_working_directory': os.getcwd()
     }
     return jsonify(info)
@@ -470,4 +474,6 @@ def serve(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Check if we're in development or production
+    is_dev = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=is_dev, port=5000)
