@@ -1,0 +1,39 @@
+
+# Backend improvements
+backend_backup/
+backend/__pycache__/
+backend/*/__pycache__/
+backend/*/*/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+.coverage
+htmlcov/
+.pytest_cache/
+.cache
+logs/
+cache/
+*.log
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Test files
+tests/uploads/
+tests/cache/
+tests/logs/
+test_stats.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
