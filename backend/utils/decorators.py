@@ -27,10 +27,14 @@ def handle_errors(f):
     return decorated_function
 
 def rate_limit(max_requests=None, time_window=None):
-    """Rate limiting decorator"""
+    """Rate limiting decorator - disabled during testing"""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Skip rate limiting during testing
+            if current_app.config.get('TESTING', False):
+                return f(*args, **kwargs)
+            
             # Get rate limit settings from app config or use defaults
             max_reqs = max_requests or current_app.config.get('RATE_LIMIT_REQUESTS', 10)
             window = time_window or current_app.config.get('RATE_LIMIT_WINDOW', 60)

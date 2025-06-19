@@ -47,6 +47,29 @@ mkdir -p frontend/dist  # Ensure frontend dist exists
 # Set permissions
 chmod 755 uploads data logs cache
 
+# Check for port conflicts
+print_status "Checking for port conflicts..."
+PORT=5001
+if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
+    print_warning "Port $PORT is in use. Looking for alternative..."
+    for TEST_PORT in 5002 5003 5004 5005; do
+        if ! lsof -Pi :$TEST_PORT -sTCP:LISTEN -t >/dev/null ; then
+            PORT=$TEST_PORT
+            print_success "Using alternative port: $PORT"
+            export PORT=$PORT
+            break
+        fi
+    done
+    if [ $PORT -eq 5001 ]; then
+        print_error "No available ports found. Please stop conflicting services."
+        print_warning "On macOS, you can disable AirPlay Receiver:"
+        print_warning "System Preferences > Sharing > AirPlay Receiver > Off"
+        exit 1
+    fi
+else
+    print_success "Port $PORT is available"
+fi
+
 # Run tests to verify everything works
 print_status "Running tests to verify setup..."
 if command -v pytest &> /dev/null; then
@@ -77,9 +100,9 @@ sleep 3
 # Check if backend is running
 if ps -p $BACKEND_PID > /dev/null; then
     print_success "Improved backend started successfully (PID: $BACKEND_PID)"
-    print_success "Backend running at: http://localhost:5000"
-    print_success "Health check: http://localhost:5000/api/health"
-    print_success "Debug info: http://localhost:5000/api/debug-info"
+    print_success "Backend running at: http://localhost:$PORT"
+    print_success "Health check: http://localhost:$PORT/api/health"
+    print_success "Debug info: http://localhost:$PORT/api/debug-info"
 else
     print_error "Backend failed to start"
     exit 1
@@ -103,10 +126,12 @@ echo "- ✅ Modular architecture with separated concerns"
 echo "- ✅ Enhanced error handling and logging"
 echo "- ✅ Input validation and security improvements"
 echo "- ✅ Caching system for better performance"
-echo "- ✅ Rate limiting protection"
+echo "- ✅ Rate limiting protection (disabled during testing)"
 echo "- ✅ Comprehensive health monitoring"
 echo "- ✅ Test framework with unit and integration tests"
 echo "- ✅ Docker support for deployment"
+echo "- ✅ Port conflict detection and resolution"
+echo "- ✅ Updated to modern pypdf library"
 echo ""
 echo "Available endpoints:"
 echo "- GET  /api/health        - Health check"
@@ -117,6 +142,13 @@ echo "- POST /api/process-text  - Process custom text"
 echo "- GET  /api/stats         - Get statistics"
 echo "- POST /api/save-stats    - Save session stats"
 echo "- POST /api/reset-stats   - Reset statistics"
+echo ""
+echo "Fixes Applied:"
+echo "- 🔧 Rate limiting disabled during tests"
+echo "- 🔧 Port changed from 5000 to 5001 (configurable)"
+echo "- 🔧 Updated PyPDF2 to pypdf (modern library)"
+echo "- 🔧 Fixed datetime.utcnow() deprecation"
+echo "- 🔧 Added pytest markers to avoid warnings"
 echo ""
 print_warning "Press Ctrl+C to stop the server"
 

@@ -10,6 +10,10 @@ class Config:
     CACHE_DIR = config('CACHE_DIR', default='cache')
     LOG_DIR = config('LOG_DIR', default='logs')
     
+    # Server configuration
+    PORT = config('PORT', default=5001, cast=int)  # Changed from 5000 to avoid conflicts
+    HOST = config('HOST', default='0.0.0.0')
+    
     # Rate limiting
     RATE_LIMIT_REQUESTS = config('RATE_LIMIT_REQUESTS', default=10, cast=int)
     RATE_LIMIT_WINDOW = config('RATE_LIMIT_WINDOW', default=60, cast=int)
@@ -30,3 +34,4 @@ class TestingConfig(Config):
     DEBUG = True
     STATS_FILE = 'tests/test_stats.json'
     UPLOAD_FOLDER = 'tests/uploads'
+    PORT = config('TEST_PORT', default=5002, cast=int)  # Different port for tests

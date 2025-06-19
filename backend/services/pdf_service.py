@@ -1,8 +1,9 @@
-import PyPDF2
+import pypdf
 import time
 import os
 import traceback
 from typing import List, Dict, Optional
+from datetime import datetime
 from utils.logging_config import get_logger
 from utils.text_processor import TextProcessor
 from utils.cache import cache_pdf_extraction
@@ -46,14 +47,14 @@ class EnhancedPDFParser:
             self.logger.info(f"Extracting text from PDF: {self.file_path}")
             
             with open(self.file_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
+                reader = pypdf.PdfReader(file)
                 
                 # Extract metadata
                 self.metadata = {
                     'pages': len(reader.pages),
                     'title': 'Unknown',
                     'author': 'Unknown',
-                    'parser_used': 'PyPDF2'
+                    'parser_used': 'pypdf'
                 }
                 
                 # Try to get metadata
@@ -94,7 +95,7 @@ class EnhancedPDFParser:
                 self.logger.info(f"Extracted {len(pages_text)} pages in {self.processing_time:.2f}s")
                 return result
                 
-        except PyPDF2.errors.PdfReadError as e:
+        except pypdf.errors.PdfReadError as e:
             raise ValueError(f"PDF read error: {e}")
         except Exception as e:
             self.logger.error(f"Unexpected error: {e}")
@@ -203,18 +204,18 @@ class PDFService:
 def get_pdf_support_status():
     """Get PDF support status"""
     try:
-        import PyPDF2
+        import pypdf
         return {
             'pymupdf_available': False,
-            'pypdf2_available': True,
+            'pypdf_available': True,
             'pdf_support': True,
-            'version': PyPDF2.__version__,
-            'message': f'PDF support available using PyPDF2 v{PyPDF2.__version__}'
+            'version': pypdf.__version__,
+            'message': f'PDF support available using pypdf v{pypdf.__version__}'
         }
     except ImportError:
         return {
             'pymupdf_available': False,
-            'pypdf2_available': False,
+            'pypdf_available': False,
             'pdf_support': False,
-            'message': 'PyPDF2 not available'
+            'message': 'pypdf not available'
         }

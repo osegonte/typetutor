@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, current_app
 import psutil
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from utils.decorators import handle_errors
 
 health_bp = Blueprint('health', __name__)
@@ -41,7 +41,7 @@ def health_check():
         
         # Service checks
         services = {
-            'pdf_parser': True,  # PyPDF2 should be available
+            'pdf_parser': True,  # pypdf should be available
             'stats_service': True,
             'cache_system': os.path.exists(cache_dir)
         }
@@ -53,7 +53,7 @@ def health_check():
         
         return jsonify({
             'status': overall_status,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'system': {
                 'cpu_percent': round(cpu_percent, 1),
                 'memory_percent': round(memory.percent, 1),
@@ -65,14 +65,15 @@ def health_check():
             'config': {
                 'debug_mode': current_app.debug,
                 'max_content_length': current_app.config.get('MAX_CONTENT_LENGTH'),
-                'upload_folder': current_app.config.get('UPLOAD_FOLDER')
+                'upload_folder': current_app.config.get('UPLOAD_FOLDER'),
+                'port': current_app.config.get('PORT', 5001)
             }
         })
         
     except Exception as e:
         return jsonify({
             'status': 'unhealthy',
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'error': str(e)
         }), 500
 
@@ -98,7 +99,7 @@ def debug_info():
         }
         
         # Check key packages
-        packages_to_check = ['flask', 'PyPDF2', 'psutil', 'python-magic']
+        packages_to_check = ['flask', 'pypdf', 'psutil', 'python-magic']
         for package in packages_to_check:
             try:
                 module = __import__(package.replace('-', '_'))

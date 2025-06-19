@@ -26,12 +26,12 @@ def create_app(config_name=None):
     else:
         app.config.from_object(DevelopmentConfig)
     
-    # Setup CORS
+    # Setup CORS - updated ports
     allowed_origins = [
-        "http://localhost:5173",
-        "http://localhost:5000",
+        "http://localhost:5173",  # Vite dev server
+        f"http://localhost:{app.config.get('PORT', 5001)}",  # Backend port
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:5000"
+        f"http://127.0.0.1:{app.config.get('PORT', 5001)}"
     ]
     
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
@@ -57,7 +57,7 @@ def create_app(config_name=None):
         else:
             return send_from_directory(app.static_folder, 'index.html')
     
-    app.logger.info(f'TypeTutor backend initialized in {config_name} mode')
+    app.logger.info(f'TypeTutor backend initialized in {config_name} mode on port {app.config.get("PORT", 5001)}')
     return app
 
 def _create_directories(app):
@@ -80,7 +80,9 @@ def _create_directories(app):
 
 if __name__ == '__main__':
     app = create_app()
-    port = int(os.environ.get('PORT', 5000))
+    port = app.config.get('PORT', 5001)
+    host = app.config.get('HOST', '0.0.0.0')
     debug = app.config.get('DEBUG', False)
     
-    app.run(debug=debug, host='0.0.0.0', port=port)
+    print(f"Starting TypeTutor backend on {host}:{port}")
+    app.run(debug=debug, host=host, port=port)

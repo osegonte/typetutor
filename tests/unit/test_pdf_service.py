@@ -9,7 +9,7 @@ class TestEnhancedPDFParser:
         with pytest.raises(FileNotFoundError):
             EnhancedPDFParser('nonexistent.pdf')
     
-    @patch('backend.services.pdf_service.PyPDF2.PdfReader')
+    @patch('backend.services.pdf_service.pypdf.PdfReader')
     def test_extract_text_success(self, mock_reader):
         """Test successful text extraction"""
         # Mock PDF reader
