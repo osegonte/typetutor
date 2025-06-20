@@ -1,12 +1,9 @@
-// Updated PracticeScreen.jsx with Timer Debug Integration
-// Replace your existing PracticeScreen component with this enhanced version
+// Simplified PracticeScreen.jsx - Quick fix for blank page
+// This removes the complex timer imports that were causing the issue
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp } from 'lucide-react';
 import { saveStats } from '../services/api';
-
-// Import the enhanced timer hook
-import { useEnhancedTypingTimer, saveStatsWithDebug, TimerDebugPanel } from '../utils/timerDebugHelper';
 
 const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   // Core state
@@ -21,29 +18,21 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   const [errors, setErrors] = useState(0);
   const [errorPositions, setErrorPositions] = useState(new Set());
   
+  // Timer state - SIMPLIFIED VERSION
+  const [startTime, setStartTime] = useState(null);
+  const [endTime, setEndTime] = useState(null);
+  const [isActive, setIsActive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  
   // Session state
   const [sessionStats, setSessionStats] = useState(null);
   const [showCompletion, setShowCompletion] = useState(false);
   const [personalBest, setPersonalBest] = useState(false);
   
-  // Enhanced timer with debugging
-  const {
-    startTimer,
-    stopTimer,
-    resetTimer,
-    togglePause,
-    getCurrentDuration,
-    getSessionData,
-    startTime,
-    isActive,
-    isPaused,
-    timeElapsed,
-    debugger: timerDebugger,
-    exportDebugData
-  } = useEnhancedTypingTimer();
-  
   // Refs
   const inputRef = useRef(null);
+  const intervalRef = useRef(null);
 
   // Initialize text
   useEffect(() => {
@@ -59,6 +48,28 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       inputRef.current.focus();
     }
   }, [customText]);
+
+  // Timer effect - SIMPLIFIED VERSION
+  useEffect(() => {
+    if (isActive && !isPaused && startTime) {
+      intervalRef.current = setInterval(() => {
+        const now = Date.now();
+        const elapsed = Math.round((now - startTime) / 1000);
+        setTimeElapsed(elapsed);
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isActive, isPaused, startTime]);
 
   // Calculate real-time metrics
   useEffect(() => {
@@ -80,14 +91,68 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     }
   }, [userInput, timeElapsed, currentText]);
 
+  // SIMPLIFIED timer functions
+  const startTimer = useCallback(() => {
+    const now = Date.now();
+    console.log('⏱️ Starting timer at:', now);
+    
+    setStartTime(now);
+    setEndTime(null);
+    setIsActive(true);
+    setIsPaused(false);
+    setTimeElapsed(0);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    const now = Date.now();
+    console.log('⏱️ Stopping timer at:', now, 'Start was:', startTime);
+    
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    setEndTime(now);
+    setIsActive(false);
+    setIsPaused(false);
+    
+    // Calculate final duration
+    const finalDuration = startTime ? Math.max((now - startTime) / 1000, 1) : 1; // Minimum 1 second
+    setTimeElapsed(Math.round(finalDuration));
+    
+    console.log('⏱️ Final duration:', finalDuration, 'seconds');
+    return finalDuration;
+  }, [startTime]);
+
+  const togglePause = useCallback(() => {
+    if (isActive) {
+      setIsPaused(prev => !prev);
+    }
+  }, [isActive]);
+
+  const resetTimer = useCallback(() => {
+    console.log('⏱️ Resetting timer');
+    
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    setStartTime(null);
+    setEndTime(null);
+    setIsActive(false);
+    setIsPaused(false);
+    setTimeElapsed(0);
+  }, []);
+
   // Handle input with real-time validation
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     
-    // 🔧 CRITICAL FIX: Start session on first character with proper debugging
-    if (!isActive && value.length === 1) {
-      timerDebugger.log('First character typed, starting timer');
-      startTimer(); // This now properly sets startTime and logs everything
+    // Start timer on first character
+    if (!isActive && value.length === 1 && startTime === null) {
+      console.log('🔥 First character typed, starting timer');
+      startTimer();
     }
 
     // Prevent input beyond text length
@@ -114,33 +179,35 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         completeSession(value);
       }
     }
-  }, [currentText, isActive, startTimer, timerDebugger]);
+  }, [currentText, isActive, startTime, startTimer]);
 
-  // 🔧 MAJOR FIX: Complete session with proper timer handling
+  // Complete session - SIMPLIFIED VERSION
   const completeSession = useCallback(async (finalInput) => {
     try {
-      timerDebugger.log('Session completion started', { finalInputLength: finalInput.length });
+      console.log('🏁 Session completion started');
       
       setIsComplete(true);
       
-      // 🔧 CRITICAL FIX: Stop timer FIRST and get endTime
-      const endTime = stopTimer();
+      // Stop timer and get duration
+      const duration = stopTimer();
       
-      // 🔧 CRITICAL FIX: Use the enhanced getSessionData method
-      const sessionData = getSessionData(finalInput, errors);
-      
-      // Additional calculations for display
-      const finalWpm = sessionData.wpm;
-      const finalAccuracy = sessionData.accuracy;
-      const totalTime = sessionData.duration;
+      // Calculate final metrics
+      const finalWpm = duration > 0 ? Math.round((finalInput.length / 5) / (duration / 60)) : 0;
+      let correctChars = 0;
+      for (let i = 0; i < finalInput.length; i++) {
+        if (i < currentText.length && finalInput[i] === currentText[i]) {
+          correctChars++;
+        }
+      }
+      const finalAccuracy = finalInput.length > 0 ? Math.round((correctChars / finalInput.length) * 100) : 100;
 
       const stats = {
         wpm: finalWpm,
         accuracy: finalAccuracy,
-        timeElapsed: Math.round(totalTime), // Now consistent with duration
+        timeElapsed: Math.round(duration),
         errors: errors,
         totalCharacters: finalInput.length,
-        charactersPerMinute: totalTime > 0 ? Math.round(finalInput.length / (totalTime / 60)) : 0,
+        charactersPerMinute: duration > 0 ? Math.round(finalInput.length / (duration / 60)) : 0,
         completedAt: new Date().toISOString(),
         textPreview: currentText.substring(0, 50) + (currentText.length > 50 ? '...' : ''),
         difficulty: getDifficultyLevel()
@@ -156,11 +223,11 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       }
 
       try {
-        // 🔧 CRITICAL FIX: Use enhanced saveStats with debugging
-        await saveStatsWithDebug({
+        // Save stats to backend
+        await saveStats({
           wpm: finalWpm,
           accuracy: finalAccuracy,
-          duration: Math.round(totalTime), // This is now guaranteed to be > 0
+          duration: Math.round(duration), // This should now always be >= 1
           errors: errors,
           mode: 'practice',
           itemType: customText ? 'Custom Text' : 'Default Practice',
@@ -169,18 +236,16 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
           timestamp: new Date().toISOString()
         });
         
-        timerDebugger.log('Stats saved successfully');
+        console.log('✅ Stats saved successfully');
       } catch (error) {
-        timerDebugger.log('Failed to save session stats', { error: error.message });
-        console.error('Failed to save session stats:', error);
+        console.error('❌ Failed to save session stats:', error);
       }
 
       setShowCompletion(true);
     } catch (error) {
-      timerDebugger.log('Error in completeSession', { error: error.message });
-      console.error('Error completing session:', error);
+      console.error('❌ Error in completeSession:', error);
     }
-  }, [stopTimer, getSessionData, errors, currentText, customText, timerDebugger]);
+  }, [stopTimer, errors, currentText, customText]);
 
   // Get difficulty level based on text characteristics
   const getDifficultyLevel = () => {
@@ -196,9 +261,9 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     return 'Easy';
   };
 
-  // 🔧 FIX: Reset session with proper timer reset
+  // Reset session
   const resetSession = useCallback(() => {
-    timerDebugger.log('Session reset initiated');
+    console.log('🔄 Session reset initiated');
     
     setUserInput('');
     setCurrentIndex(0);
@@ -211,13 +276,12 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     setSessionStats(null);
     setPersonalBest(false);
     
-    // Reset timer (this clears startTime, isActive, etc.)
     resetTimer();
     
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, [resetTimer, timerDebugger]);
+  }, [resetTimer]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -229,16 +293,12 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       } else if (e.ctrlKey && e.key === 'r') {
         e.preventDefault();
         resetSession();
-      } else if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        // Export debug data
-        e.preventDefault();
-        exportDebugData();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, togglePause, resetSession, exportDebugData]);
+  }, [isActive, togglePause, resetSession]);
 
   // Character styling for visual feedback
   const getCharacterStyle = (index) => {
@@ -280,16 +340,18 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 px-4">
-      {/* Timer Debug Panel - only shows in development */}
-      <TimerDebugPanel 
-        timerState={{ 
-          startTime, 
-          isActive, 
-          timeElapsed, 
-          getCurrentDuration 
-        }}
-        darkMode={darkMode}
-      />
+      {/* Debug info in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className={`rounded-lg border p-3 text-sm ${
+          darkMode ? 'bg-gray-900 border-gray-700 text-gray-300' : 'bg-yellow-50 border-yellow-200 text-gray-700'
+        }`}>
+          <div className="font-semibold mb-1">🔧 Debug Info:</div>
+          <div className="space-y-1 text-xs font-mono">
+            <div>Timer: {startTime ? '✅ Started' : '❌ Not started'} | Active: {isActive ? '✅' : '❌'} | Duration: {timeElapsed}s</div>
+            <div>Characters: {userInput.length}/{currentText.length} | Errors: {errors}</div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -409,13 +471,6 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
              isActive ? "Keep typing..." :
              "Start typing to begin"}
           </span>
-          
-          {/* Debug info in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-2 text-xs text-gray-500">
-              Debug: startTime={startTime ? '✅' : '❌'} | active={isActive ? '✅' : '❌'} | duration={getCurrentDuration()?.toFixed(1)}s
-            </div>
-          )}
         </div>
         <textarea
           ref={inputRef}
@@ -521,11 +576,6 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         <span>
           <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘R</kbd> to restart
         </span>
-        {process.env.NODE_ENV === 'development' && (
-          <span>
-            <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘⇧D</kbd> debug export
-          </span>
-        )}
       </div>
     </div>
   );
