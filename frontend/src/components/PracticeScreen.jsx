@@ -1,21 +1,23 @@
+// Updated PracticeScreen.jsx with Timer Debug Integration
+// Replace your existing PracticeScreen component with this enhanced version
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp } from 'lucide-react';
 import { saveStats } from '../services/api';
+
+// Import the enhanced timer hook
+import { useEnhancedTypingTimer, saveStatsWithDebug, TimerDebugPanel } from '../utils/timerDebugHelper';
 
 const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   // Core state
   const [currentText, setCurrentText] = useState('');
   const [userInput, setUserInput] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isActive, setIsActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   
   // Performance metrics
-  const [startTime, setStartTime] = useState(null);
   const [wpm, setWpm] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
-  const [timeElapsed, setTimeElapsed] = useState(0);
   const [errors, setErrors] = useState(0);
   const [errorPositions, setErrorPositions] = useState(new Set());
   
@@ -24,9 +26,24 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   const [showCompletion, setShowCompletion] = useState(false);
   const [personalBest, setPersonalBest] = useState(false);
   
+  // Enhanced timer with debugging
+  const {
+    startTimer,
+    stopTimer,
+    resetTimer,
+    togglePause,
+    getCurrentDuration,
+    getSessionData,
+    startTime,
+    isActive,
+    isPaused,
+    timeElapsed,
+    debugger: timerDebugger,
+    exportDebugData
+  } = useEnhancedTypingTimer();
+  
   // Refs
   const inputRef = useRef(null);
-  const intervalRef = useRef(null);
 
   // Initialize text
   useEffect(() => {
@@ -42,19 +59,6 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       inputRef.current.focus();
     }
   }, [customText]);
-
-  // Timer for elapsed time
-  useEffect(() => {
-    if (isActive && !isPaused && !isComplete) {
-      intervalRef.current = setInterval(() => {
-        setTimeElapsed(prev => prev + 1);
-      }, 1000);
-    } else {
-      clearInterval(intervalRef.current);
-    }
-
-    return () => clearInterval(intervalRef.current);
-  }, [isActive, isPaused, isComplete]);
 
   // Calculate real-time metrics
   useEffect(() => {
@@ -80,10 +84,10 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   const handleInputChange = useCallback((e) => {
     const value = e.target.value;
     
-    // Start session on first character
+    // 🔧 CRITICAL FIX: Start session on first character with proper debugging
     if (!isActive && value.length === 1) {
-      setIsActive(true);
-      setStartTime(Date.now());
+      timerDebugger.log('First character typed, starting timer');
+      startTimer(); // This now properly sets startTime and logs everything
     }
 
     // Prevent input beyond text length
@@ -110,62 +114,73 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         completeSession(value);
       }
     }
-  }, [currentText, isActive]);
+  }, [currentText, isActive, startTimer, timerDebugger]);
 
-  // Complete session with comprehensive stats
+  // 🔧 MAJOR FIX: Complete session with proper timer handling
   const completeSession = useCallback(async (finalInput) => {
-    setIsComplete(true);
-    setIsActive(false);
-    
-    const endTime = Date.now();
-    const totalTime = (endTime - startTime) / 1000;
-    const finalWpm = Math.round((finalInput.length / 5) / (totalTime / 60));
-    
-    let correctChars = 0;
-    for (let i = 0; i < finalInput.length; i++) {
-      if (finalInput[i] === currentText[i]) {
-        correctChars++;
-      }
-    }
-    const finalAccuracy = Math.round((correctChars / finalInput.length) * 100);
-
-    const stats = {
-      wpm: finalWpm,
-      accuracy: finalAccuracy,
-      timeElapsed: Math.round(totalTime),
-      errors: errors,
-      totalCharacters: finalInput.length,
-      charactersPerMinute: Math.round(finalInput.length / (totalTime / 60)),
-      completedAt: new Date().toISOString(),
-      textPreview: currentText.substring(0, 50) + (currentText.length > 50 ? '...' : ''),
-      difficulty: getDifficultyLevel()
-    };
-
-    setSessionStats(stats);
-
-    // Check for personal best
-    const savedBest = localStorage.getItem('personalBestWpm');
-    if (!savedBest || finalWpm > parseInt(savedBest)) {
-      localStorage.setItem('personalBestWpm', finalWpm.toString());
-      setPersonalBest(true);
-    }
-
     try {
-      await saveStats({
+      timerDebugger.log('Session completion started', { finalInputLength: finalInput.length });
+      
+      setIsComplete(true);
+      
+      // 🔧 CRITICAL FIX: Stop timer FIRST and get endTime
+      const endTime = stopTimer();
+      
+      // 🔧 CRITICAL FIX: Use the enhanced getSessionData method
+      const sessionData = getSessionData(finalInput, errors);
+      
+      // Additional calculations for display
+      const finalWpm = sessionData.wpm;
+      const finalAccuracy = sessionData.accuracy;
+      const totalTime = sessionData.duration;
+
+      const stats = {
         wpm: finalWpm,
         accuracy: finalAccuracy,
-        duration: Math.round(totalTime),
+        timeElapsed: Math.round(totalTime), // Now consistent with duration
         errors: errors,
-        mode: 'practice',
-        itemType: customText ? 'Custom Text' : 'Default Practice',
-        completedAt: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Failed to save session stats:', error);
-    }
+        totalCharacters: finalInput.length,
+        charactersPerMinute: totalTime > 0 ? Math.round(finalInput.length / (totalTime / 60)) : 0,
+        completedAt: new Date().toISOString(),
+        textPreview: currentText.substring(0, 50) + (currentText.length > 50 ? '...' : ''),
+        difficulty: getDifficultyLevel()
+      };
 
-    setShowCompletion(true);
-  }, [startTime, errors, currentText, customText]);
+      setSessionStats(stats);
+
+      // Check for personal best
+      const savedBest = localStorage.getItem('personalBestWpm');
+      if (!savedBest || finalWpm > parseInt(savedBest)) {
+        localStorage.setItem('personalBestWpm', finalWpm.toString());
+        setPersonalBest(true);
+      }
+
+      try {
+        // 🔧 CRITICAL FIX: Use enhanced saveStats with debugging
+        await saveStatsWithDebug({
+          wpm: finalWpm,
+          accuracy: finalAccuracy,
+          duration: Math.round(totalTime), // This is now guaranteed to be > 0
+          errors: errors,
+          mode: 'practice',
+          itemType: customText ? 'Custom Text' : 'Default Practice',
+          completedAt: new Date().toISOString(),
+          totalCharacters: finalInput.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        timerDebugger.log('Stats saved successfully');
+      } catch (error) {
+        timerDebugger.log('Failed to save session stats', { error: error.message });
+        console.error('Failed to save session stats:', error);
+      }
+
+      setShowCompletion(true);
+    } catch (error) {
+      timerDebugger.log('Error in completeSession', { error: error.message });
+      console.error('Error completing session:', error);
+    }
+  }, [stopTimer, getSessionData, errors, currentText, customText, timerDebugger]);
 
   // Get difficulty level based on text characteristics
   const getDifficultyLevel = () => {
@@ -181,35 +196,28 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     return 'Easy';
   };
 
-  // Reset session
+  // 🔧 FIX: Reset session with proper timer reset
   const resetSession = useCallback(() => {
+    timerDebugger.log('Session reset initiated');
+    
     setUserInput('');
     setCurrentIndex(0);
-    setIsActive(false);
-    setIsPaused(false);
     setIsComplete(false);
     setShowCompletion(false);
-    setStartTime(null);
     setWpm(0);
     setAccuracy(100);
-    setTimeElapsed(0);
     setErrors(0);
     setErrorPositions(new Set());
     setSessionStats(null);
     setPersonalBest(false);
     
+    // Reset timer (this clears startTime, isActive, etc.)
+    resetTimer();
+    
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, []);
-
-  // Toggle pause
-  const togglePause = useCallback(() => {
-    setIsPaused(!isPaused);
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isPaused]);
+  }, [resetTimer, timerDebugger]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -221,12 +229,16 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       } else if (e.ctrlKey && e.key === 'r') {
         e.preventDefault();
         resetSession();
+      } else if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        // Export debug data
+        e.preventDefault();
+        exportDebugData();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, togglePause, resetSession]);
+  }, [isActive, togglePause, resetSession, exportDebugData]);
 
   // Character styling for visual feedback
   const getCharacterStyle = (index) => {
@@ -268,6 +280,17 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 px-4">
+      {/* Timer Debug Panel - only shows in development */}
+      <TimerDebugPanel 
+        timerState={{ 
+          startTime, 
+          isActive, 
+          timeElapsed, 
+          getCurrentDuration 
+        }}
+        darkMode={darkMode}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <button
@@ -386,6 +409,13 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
              isActive ? "Keep typing..." :
              "Start typing to begin"}
           </span>
+          
+          {/* Debug info in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 text-xs text-gray-500">
+              Debug: startTime={startTime ? '✅' : '❌'} | active={isActive ? '✅' : '❌'} | duration={getCurrentDuration()?.toFixed(1)}s
+            </div>
+          )}
         </div>
         <textarea
           ref={inputRef}
@@ -491,6 +521,11 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         <span>
           <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘R</kbd> to restart
         </span>
+        {process.env.NODE_ENV === 'development' && (
+          <span>
+            <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘⇧D</kbd> debug export
+          </span>
+        )}
       </div>
     </div>
   );

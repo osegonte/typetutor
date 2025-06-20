@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from utils.logging_config import get_logger
 
 class StatsService:
-    """Service for handling user statistics"""
+    """Service for handling user statistics with robust data validation"""
     
     def __init__(self, stats_file: str):
         self.stats_file = stats_file
@@ -102,25 +102,55 @@ class StatsService:
         return self._read_stats()
     
     def save_session(self, session_data: Dict) -> Dict:
-        """Save a typing session and update statistics"""
+        """Save a typing session and update statistics with enhanced validation"""
         try:
+            # DEBUG: Log raw session data
+            self.logger.info(f"Raw session data received: {session_data}")
+            
             stats = self._read_stats()
             
-            # Validate session data
-            wpm = int(session_data['wpm'])
-            accuracy = int(session_data['accuracy'])
-            duration = float(session_data['duration'])
+            # Validate and extract session data with enhanced checks
+            wpm = self._validate_wpm(session_data.get('wpm', 0))
+            accuracy = self._validate_accuracy(session_data.get('accuracy', 0))
+            duration = self._validate_duration(session_data.get('duration', 0))
             
-            # Create session record
+            # DEBUG: Log parsed values
+            self.logger.info(f"Parsed values - WPM: {wpm}, Accuracy: {accuracy}, Duration: {duration}")
+            
+            # Handle edge case where duration is 0
+            if duration <= 0:
+                self.logger.warning(f"Invalid duration received: {duration}. Using minimum of 1 second.")
+                duration = 1.0  # Set minimum duration to avoid "0m 0s"
+            
+            # Validate minimum session requirements
+            if wpm <= 0 and accuracy <= 0:
+                self.logger.warning("Invalid session: both WPM and accuracy are 0")
+                return {
+                    'success': False,
+                    'error': 'Invalid session data: no meaningful typing detected',
+                    'message': 'Please ensure you complete some typing before saving the session.'
+                }
+            
+            # Get actual timestamp or use current time
+            session_timestamp = session_data.get('timestamp')
+            if not session_timestamp:
+                session_timestamp = datetime.now().isoformat()
+            
+            # Create session record with formatted duration
             session_record = {
-                'date': session_data.get('timestamp', datetime.now().isoformat()),
+                'date': self._format_date(session_timestamp),
                 'duration': self._format_duration(duration),
                 'wpm': wpm,
                 'accuracy': accuracy,
-                'mode': session_data.get('itemType', 'Practice'),
+                'mode': self._clean_mode(session_data.get('itemType', 'Practice')),
                 'difficulty': session_data.get('difficulty', 'medium'),
-                'word_count': session_data.get('word_count', 0)
+                'word_count': max(0, int(session_data.get('totalCharacters', 0) / 5)),  # Estimate words
+                'raw_duration': duration,  # Keep raw duration for calculations
+                'timestamp': session_timestamp
             }
+            
+            # DEBUG: Log session record
+            self.logger.info(f"Created session record: {session_record}")
             
             # Update recent sessions (keep last 10)
             stats['recentSessions'].insert(0, session_record)
@@ -143,8 +173,8 @@ class StatsService:
                 total_accuracy = (stats['accuracy'] * (total_sessions - 1)) + accuracy
                 stats['accuracy'] = round(total_accuracy / total_sessions)
             
-            # Update practice time
-            minutes_practiced = math.ceil(duration / 60)
+            # Update practice time (use actual duration, not formatted)
+            minutes_practiced = max(1, math.ceil(duration / 60))
             stats['practiceMinutes'] += minutes_practiced
             
             # Update personal bests
@@ -158,7 +188,7 @@ class StatsService:
                     stats['personalBest']['date'] = session_record['date']
             
             # Update streak
-            self._update_streak(stats, session_record['date'])
+            self._update_streak(stats, session_timestamp)
             
             # Update weekly stats
             self._update_weekly_stats(stats, session_record)
@@ -166,7 +196,7 @@ class StatsService:
             # Save updated stats
             self._write_stats(stats)
             
-            self.logger.info(f"Session saved: {wpm} WPM, {accuracy}% accuracy")
+            self.logger.info(f"Session saved successfully: {wpm} WPM, {accuracy}% accuracy, {self._format_duration(duration)}")
             
             return {
                 'success': True,
@@ -181,12 +211,110 @@ class StatsService:
             
         except Exception as e:
             self.logger.error(f"Error saving session: {e}")
-            raise
+            # Return error response instead of raising
+            return {
+                'success': False,
+                'error': 'Failed to save session',
+                'message': str(e)
+            }
     
-    def _update_streak(self, stats: Dict, session_date: str):
+    def _validate_wpm(self, wpm_value) -> int:
+        """Validate and clean WPM value"""
+        try:
+            wpm = int(float(wpm_value))
+            if wpm < 0:
+                self.logger.warning(f"Negative WPM value: {wpm}, setting to 0")
+                return 0
+            if wpm > 300:
+                self.logger.warning(f"Extremely high WPM value: {wpm}, capping at 300")
+                return 300
+            return wpm
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid WPM value: {wpm_value}, defaulting to 0")
+            return 0
+    
+    def _validate_accuracy(self, accuracy_value) -> int:
+        """Validate and clean accuracy value"""
+        try:
+            accuracy = int(float(accuracy_value))
+            if accuracy < 0:
+                self.logger.warning(f"Negative accuracy value: {accuracy}, setting to 0")
+                return 0
+            if accuracy > 100:
+                self.logger.warning(f"Accuracy over 100%: {accuracy}, capping at 100")
+                return 100
+            return accuracy
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid accuracy value: {accuracy_value}, defaulting to 0")
+            return 0
+    
+    def _validate_duration(self, duration_value) -> float:
+        """Validate and clean duration value"""
+        try:
+            duration = float(duration_value)
+            if duration < 0:
+                self.logger.warning(f"Negative duration: {duration}, setting to 0")
+                return 0.0
+            if duration > 7200:  # 2 hours max
+                self.logger.warning(f"Very long duration: {duration}s, capping at 2 hours")
+                return 7200.0
+            return duration
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid duration value: {duration_value}, defaulting to 0")
+            return 0.0
+    
+    def _clean_mode(self, mode_value) -> str:
+        """Clean and standardize mode/itemType value"""
+        if not mode_value or not isinstance(mode_value, str):
+            return 'Practice'
+        
+        # Map common variations to standard names
+        mode_map = {
+            'custom': 'Custom Text',
+            'custom text': 'Custom Text', 
+            'pdf': 'PDF Practice',
+            'pdf practice': 'PDF Practice',
+            'paragraph': 'Paragraph',
+            'test': 'Typing Test',
+            'practice': 'Practice'
+        }
+        
+        cleaned_mode = mode_value.lower().strip()
+        return mode_map.get(cleaned_mode, mode_value.title())
+    
+    def _format_date(self, timestamp_str: str) -> str:
+        """Format timestamp to user-friendly date"""
+        try:
+            if 'T' in timestamp_str:
+                dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(timestamp_str)
+            return dt.strftime('%Y-%m-%d')
+        except (ValueError, TypeError):
+            return datetime.now().strftime('%Y-%m-%d')
+    
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in a human-readable way"""
+        if seconds <= 0:
+            return "0m 1s"  # Show minimum of 1 second instead of 0m 0s
+        
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        
+        if minutes == 0 and secs == 0:
+            return "0m 1s"  # Handle edge case
+        
+        return f"{minutes}m {secs}s"
+    
+    def _update_streak(self, stats: Dict, session_timestamp: str):
         """Update the user's typing streak"""
         try:
-            today = datetime.fromisoformat(session_date[:10]).date()
+            # Extract date from timestamp
+            if 'T' in session_timestamp:
+                today = datetime.fromisoformat(session_timestamp.replace('Z', '+00:00')).date()
+            else:
+                today = datetime.fromisoformat(session_timestamp).date()
+            
             last_session_date = stats.get('lastSessionDate')
             
             if last_session_date:
@@ -210,14 +338,14 @@ class StatsService:
             
         except Exception as e:
             self.logger.error(f"Error updating streak: {e}")
-            stats['currentStreak'] = 1
+            stats['currentStreak'] = max(1, stats.get('currentStreak', 0))
             stats['lastSessionDate'] = datetime.now().date().isoformat()
     
     def _update_weekly_stats(self, stats: Dict, session: Dict):
         """Update weekly statistics"""
         try:
-            # Get current week
-            session_date = datetime.fromisoformat(session['date'][:10])
+            # Get current week from session date
+            session_date = datetime.fromisoformat(session['timestamp'][:10])
             week_start = session_date - timedelta(days=session_date.weekday())
             week_key = week_start.strftime('%Y-%m-%d')
             
@@ -239,9 +367,9 @@ class StatsService:
                 }
                 stats['weeklyStats'].append(week_stats)
             
-            # Update week stats
+            # Update week stats using raw duration
             week_stats['sessions'] += 1
-            week_stats['total_time'] += session.get('word_count', 0) / max(session['wpm'], 1) * 60
+            week_stats['total_time'] += session.get('raw_duration', 0)
             week_stats['best_wpm'] = max(week_stats['best_wpm'], session['wpm'])
             week_stats['best_accuracy'] = max(week_stats['best_accuracy'], session['accuracy'])
             week_stats['total_words'] += session.get('word_count', 0)
@@ -261,8 +389,12 @@ class StatsService:
             return {'wpm_change': 0, 'accuracy_change': 0, 'trend': 'stable'}
         
         # Compare with average of last 3 sessions (excluding current)
-        recent_wpm = sum(s['wpm'] for s in recent_sessions[1:4]) / min(3, len(recent_sessions) - 1)
-        recent_accuracy = sum(s['accuracy'] for s in recent_sessions[1:4]) / min(3, len(recent_sessions) - 1)
+        comparison_sessions = recent_sessions[1:4]
+        if not comparison_sessions:
+            return {'wpm_change': 0, 'accuracy_change': 0, 'trend': 'stable'}
+        
+        recent_wpm = sum(s['wpm'] for s in comparison_sessions) / len(comparison_sessions)
+        recent_accuracy = sum(s['accuracy'] for s in comparison_sessions) / len(comparison_sessions)
         
         wpm_change = current_wpm - recent_wpm
         accuracy_change = current_accuracy - recent_accuracy
@@ -279,12 +411,6 @@ class StatsService:
             'accuracy_change': round(accuracy_change, 1),
             'trend': trend
         }
-    
-    def _format_duration(self, seconds: float) -> str:
-        """Format duration in a human-readable way"""
-        minutes = int(seconds // 60)
-        secs = int(seconds % 60)
-        return f"{minutes}m {secs}s"
     
     def reset_stats(self, new_stats: Optional[Dict] = None) -> Dict:
         """Reset statistics to default or provided values"""
@@ -306,7 +432,7 @@ class StatsService:
         return new_stats
     
     def get_debug_info(self) -> Dict:
-        """Get debug information about stats file"""
+        """Get debug information about stats file and recent sessions"""
         info = {
             'stats_file_path': self.stats_file,
             'stats_file_exists': os.path.exists(self.stats_file),
@@ -323,6 +449,16 @@ class StatsService:
                 info['stats_file_readable'] = os.access(self.stats_file, os.R_OK)
                 info['stats_file_writable'] = os.access(self.stats_file, os.W_OK)
                 info['last_modified'] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+                
+                # Add sample recent sessions for debugging
+                try:
+                    stats = self._read_stats()
+                    info['recent_sessions_count'] = len(stats.get('recentSessions', []))
+                    info['sample_recent_sessions'] = stats.get('recentSessions', [])[:3]
+                    info['total_sessions'] = stats.get('totalSessions', 0)
+                except Exception as e:
+                    info['stats_read_error'] = str(e)
+                    
             except OSError as e:
                 info['error'] = str(e)
         

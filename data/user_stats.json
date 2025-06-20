@@ -1,1 +1,34 @@
-{"averageWpm": 0, "accuracy": 0, "practiceMinutes": 0, "currentStreak": 0, "totalSessions": 0, "recentSessions": []}
+{
+  "averageWpm": 0,
+  "accuracy": 100,
+  "practiceMinutes": 0,
+  "currentStreak": 1,
+  "totalSessions": 1,
+  "recentSessions": [
+    {
+      "date": "2025-06-20T16:29:05.130Z",
+      "duration": "0m 0s",
+      "wpm": 0,
+      "accuracy": 100,
+      "mode": "Custom Text",
+      "difficulty": "medium",
+      "word_count": 0
+    }
+  ],
+  "lastSessionDate": "2025-06-20",
+  "personalBest": {
+    "wpm": 0,
+    "accuracy": 100,
+    "date": "2025-06-20T16:29:05.130Z"
+  },
+  "weeklyStats": [
+    {
+      "week_start": "2025-06-16",
+      "sessions": 1,
+      "total_time": 0.0,
+      "best_wpm": 0,
+      "best_accuracy": 100,
+      "total_words": 0
+    }
+  ]
+}

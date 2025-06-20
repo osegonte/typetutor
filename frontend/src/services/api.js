@@ -1,381 +1,347 @@
-// api.js - Fixed API service for TypeTutor frontend
+// Updated API service - frontend/src/services/api.js
+// Fix the port mismatch between frontend and backend
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+// Create axios instance with proper configuration
 import axios from 'axios';
 
-// FIXED: Updated to use port 5001 instead of 5000
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-
-// Create axios instance with enhanced error handling
-const apiClient = axios.create({
-  baseURL: API_URL,
-  timeout: 15000, // 15 second timeout for PDF uploads
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json',
-  }
+  },
 });
 
-// Request interceptor
-apiClient.interceptors.request.use(
+// Add request interceptor for debugging
+api.interceptors.request.use(
   (config) => {
-    // Log API calls in development
-    if (import.meta.env.DEV) {
-      console.log(`🔄 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data);
     }
-    
-    // Add timestamp to prevent caching
-    if (config.method === 'get') {
-      config.params = { 
-        ...config.params, 
-        _t: Date.now() 
-      };
-    }
-    
     return config;
   },
   (error) => {
-    console.error('❌ Request Error:', error);
+    console.error('🚨 API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor with better error handling
-apiClient.interceptors.response.use(
+// Add response interceptor for debugging and error handling
+api.interceptors.response.use(
   (response) => {
-    // Log successful responses in development
-    if (import.meta.env.DEV) {
-      console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url}`, response.data);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ API Response: ${response.config.url}`, response.data);
     }
     return response;
   },
   (error) => {
-    // Create consistent error format
-    const errorInfo = {
-      message: 'An unexpected error occurred',
-      status: error.response?.status || 500,
-      statusText: error.response?.statusText || 'Internal Server Error',
-      data: error.response?.data || null,
-      isNetworkError: !error.response,
-      timestamp: new Date().toISOString()
-    };
-
-    // Handle different error types
-    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-      errorInfo.message = 'Cannot connect to TypeTutor server. Please make sure the backend is running on port 5001.';
-      errorInfo.isNetworkError = true;
-    } else if (error.code === 'ECONNABORTED') {
-      errorInfo.message = 'Request timed out. Please try again.';
-    } else if (error.response?.status === 404) {
-      errorInfo.message = 'API endpoint not found. Please check the server configuration.';
-    } else if (error.response?.status === 413) {
-      errorInfo.message = 'File too large. Please try a smaller file (max 10MB).';
-    } else if (error.response?.status === 429) {
-      errorInfo.message = 'Too many requests. Please wait a moment and try again.';
-    } else if (error.response?.status === 500) {
-      errorInfo.message = 'Server error occurred. Please try again later.';
-    } else if (error.response?.data?.error) {
-      errorInfo.message = error.response.data.error;
-    } else if (error.message) {
-      errorInfo.message = error.message;
+    console.error('🚨 API Response Error:', error);
+    
+    // Handle specific error cases
+    if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+      console.error('🚨 Backend server is not running or not accessible at:', API_BASE_URL);
+      throw new Error('Cannot connect to server. Please ensure the backend is running on port 5001.');
     }
-
-    console.error('❌ API Error:', errorInfo);
-    return Promise.reject(errorInfo);
+    
+    if (error.response) {
+      // Server responded with error status
+      const { status, data } = error.response;
+      console.error(`🚨 Server Error ${status}:`, data);
+      
+      if (status === 404) {
+        throw new Error('API endpoint not found');
+      } else if (status === 500) {
+        throw new Error(data.message || 'Internal server error');
+      } else if (status === 400) {
+        throw new Error(data.message || 'Bad request');
+      }
+      
+      throw new Error(data.message || `Server error: ${status}`);
+    }
+    
+    return Promise.reject(error);
   }
 );
 
-// Health check function
-export const checkHealth = async () => {
-  try {
-    const response = await apiClient.get('/health');
-    return {
-      success: true,
-      data: response.data,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      isNetworkError: error.isNetworkError,
-      timestamp: new Date().toISOString()
-    };
-  }
-};
-
-// Upload PDF with enhanced error handling and progress tracking
+// Upload PDF file with progress tracking
 export const uploadPDF = async (file, onProgress = null) => {
-  // Input validation
-  if (!file) {
-    throw { message: 'No file provided', success: false };
-  }
-
-  if (file.type !== 'application/pdf') {
-    throw { message: 'Please select a PDF file', success: false };
-  }
-
-  if (file.size > 10 * 1024 * 1024) { // 10MB limit
-    throw { message: 'File size must be less than 10MB', success: false };
-  }
-
-  const formData = new FormData();
-  formData.append('file', file);
-
   try {
-    const response = await apiClient.post('/upload-pdf', formData, {
+    console.log('📁 Uploading PDF:', file.name, 'Size:', file.size);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post('/upload-pdf', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': 'multipart/form-data',
       },
-      timeout: 30000, // 30 seconds for file uploads
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress({ percentage: percentCompleted, loaded: progressEvent.loaded, total: progressEvent.total });
+          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress({ percentage, loaded: progressEvent.loaded, total: progressEvent.total });
         }
-      }
+      },
     });
 
-    return {
-      success: true,
-      ...response.data
-    };
+    return response.data;
   } catch (error) {
-    throw {
-      success: false,
-      error: error.message,
-      details: error.data
-    };
+    console.error('Error uploading PDF:', error);
+    throw error;
   }
 };
 
-// Process text content
+// Process custom text
 export const processText = async (text) => {
-  // Input validation
-  if (!text || typeof text !== 'string') {
-    throw { message: 'Text content is required', success: false };
-  }
-
-  const trimmedText = text.trim();
-  if (trimmedText.length < 10) {
-    throw { message: 'Text must be at least 10 characters long', success: false };
-  }
-
-  if (trimmedText.length > 50000) {
-    throw { message: 'Text must be less than 50,000 characters', success: false };
-  }
-
   try {
-    const response = await apiClient.post('/process-text', { 
-      text: trimmedText
-    });
-
-    return {
-      success: true,
-      ...response.data
-    };
+    console.log('📝 Processing text:', text.substring(0, 50) + '...');
+    
+    const response = await api.post('/process-text', { text });
+    return response.data;
   } catch (error) {
-    throw {
-      success: false,
-      error: error.message,
-      details: error.data
-    };
+    console.error('Error processing text:', error);
+    throw error;
   }
 };
 
-// Get user statistics with better error handling
-export const getStats = async (timeRange = 'all') => {
+// Get user statistics
+export const getStats = async () => {
   try {
-    const response = await apiClient.get('/stats', {
-      params: { 
-        timeRange,
-        includeDetails: true 
-      }
-    });
-
-    // Ensure we return consistent data structure
-    const defaultStats = {
-      averageWpm: 0,
-      accuracy: 0,
-      practiceMinutes: 0,
-      currentStreak: 0,
-      totalSessions: 0,
-      personalBest: 0,
-      lastSessionDate: null,
-      recentSessions: []
-    };
-
-    return {
-      ...defaultStats,
-      ...response.data
-    };
-  } catch (error) {
-    console.error('Failed to fetch stats:', error.message);
+    console.log('📊 Fetching user statistics...');
     
-    // Return default stats structure if API fails
-    return {
-      averageWpm: 0,
-      accuracy: 0,
-      practiceMinutes: 0,
-      currentStreak: 0,
-      totalSessions: 0,
-      personalBest: 0,
-      lastSessionDate: null,
-      recentSessions: []
-    };
+    const response = await api.get('/stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    throw error;
   }
 };
 
 // Save typing session statistics
 export const saveStats = async (sessionData) => {
-  // Input validation
-  if (!sessionData || typeof sessionData !== 'object') {
-    throw { message: 'Session data is required', success: false };
-  }
-
-  // Validate required fields
-  const requiredFields = ['wpm', 'accuracy', 'duration'];
-  for (const field of requiredFields) {
-    if (typeof sessionData[field] !== 'number' || sessionData[field] < 0) {
-      throw { message: `${field} must be a positive number`, success: false };
+  try {
+    console.log('💾 Saving session statistics:', sessionData);
+    
+    // Validate required fields before sending
+    const requiredFields = ['wpm', 'accuracy', 'duration'];
+    const missingFields = requiredFields.filter(field => 
+      sessionData[field] === undefined || sessionData[field] === null
+    );
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
-  }
-
-  // Validate reasonable ranges
-  if (sessionData.wpm > 300) {
-    throw { message: 'WPM seems unusually high. Please check your data.', success: false };
-  }
-
-  if (sessionData.accuracy > 100) {
-    throw { message: 'Accuracy cannot exceed 100%', success: false };
-  }
-
-  // Add metadata
-  const enrichedData = {
-    ...sessionData,
-    timestamp: new Date().toISOString(),
-    userAgent: navigator.userAgent,
-    sessionId: generateSessionId(),
-    version: '1.0'
-  };
-
-  try {
-    const response = await apiClient.post('/save-stats', enrichedData);
-    return {
-      success: true,
-      ...response.data
-    };
+    
+    // Log critical values for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Session data debug:', {
+        wpm: sessionData.wpm,
+        accuracy: sessionData.accuracy,
+        duration: sessionData.duration,
+        durationIsZero: sessionData.duration === 0,
+        durationIsNaN: isNaN(sessionData.duration)
+      });
+    }
+    
+    const response = await api.post('/save-stats', sessionData);
+    return response.data;
   } catch (error) {
-    throw {
-      success: false,
-      error: error.message,
-      details: error.data
-    };
+    console.error('Error saving stats:', error);
+    throw error;
   }
 };
 
-// Reset user statistics (for testing/admin)
-export const resetStats = async () => {
+// Reset user statistics
+export const resetStats = async (newStats = null) => {
   try {
-    const response = await apiClient.post('/reset-stats');
-    return {
-      success: true,
-      message: 'Statistics reset successfully',
-      ...response.data
-    };
+    console.log('🔄 Resetting user statistics...');
+    
+    const response = await api.post('/reset-stats', newStats || {});
+    return response.data;
   } catch (error) {
-    throw {
-      success: false,
-      error: error.message,
-      details: error.data
-    };
+    console.error('Error resetting stats:', error);
+    throw error;
   }
 };
 
-// Get debug information
-export const getDebugInfo = async () => {
+// Enhanced analytics endpoints
+export const getDetailedAnalytics = async (timeRange = 'week') => {
   try {
-    const response = await apiClient.get('/debug-info');
-    return {
-      success: true,
-      data: response.data
-    };
+    console.log('📈 Fetching detailed analytics for:', timeRange);
+    
+    const response = await api.get(`/analytics/detailed?timeRange=${timeRange}`);
+    return response.data;
   } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      isNetworkError: error.isNetworkError
-    };
+    console.error('Error fetching detailed analytics:', error);
+    throw error;
   }
 };
 
-// PDF support check
-export const checkPDFSupport = async () => {
+// Get user goals
+export const getGoals = async () => {
   try {
-    const response = await apiClient.get('/pdf-support');
-    return {
-      success: true,
-      data: response.data
-    };
+    console.log('🎯 Fetching user goals...');
+    
+    const response = await api.get('/analytics/goals');
+    return response.data;
   } catch (error) {
-    console.warn('PDF support check failed:', error.message);
-    return {
-      success: false,
-      error: error.message
-    };
+    console.error('Error fetching goals:', error);
+    throw error;
   }
 };
 
-// Utility functions
-const generateSessionId = () => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+// Create new goal
+export const createGoal = async (goalData) => {
+  try {
+    console.log('➕ Creating new goal:', goalData);
+    
+    const response = await api.post('/analytics/goals', goalData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating goal:', error);
+    throw error;
+  }
 };
 
-// Test API connectivity
+// Get achievements
+export const getAchievements = async () => {
+  try {
+    console.log('🏆 Fetching achievements...');
+    
+    const response = await api.get('/analytics/achievements');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching achievements:', error);
+    throw error;
+  }
+};
+
+// Debug endpoints (development only)
+export const getDebugStats = async () => {
+  try {
+    console.log('🐛 Fetching debug statistics...');
+    
+    const response = await api.get('/debug-stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching debug stats:', error);
+    throw error;
+  }
+};
+
+export const validateSessionData = async (sessionData) => {
+  try {
+    console.log('✅ Validating session data:', sessionData);
+    
+    const response = await api.post('/validate-session', sessionData);
+    return response.data;
+  } catch (error) {
+    console.error('Error validating session data:', error);
+    throw error;
+  }
+};
+
+// Health check
+export const checkHealth = async () => {
+  try {
+    const response = await api.get('/health');
+    return response.data;
+  } catch (error) {
+    console.error('Health check failed:', error);
+    throw error;
+  }
+};
+
+// Test connection
 export const testConnection = async () => {
-  const results = {
-    health: { status: 'pending' },
-    pdfSupport: { status: 'pending' },
-    stats: { status: 'pending' },
-    baseURL: API_URL
-  };
-
-  // Test health endpoint
   try {
-    const healthResult = await checkHealth();
-    results.health = healthResult.success 
-      ? { status: 'success', message: 'Health check passed', data: healthResult.data }
-      : { status: 'error', message: healthResult.error };
+    console.log('🔌 Testing backend connection...');
+    
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Backend connection successful:', data);
+    return data;
   } catch (error) {
-    results.health = { status: 'error', message: error.message };
+    console.error('❌ Backend connection failed:', error);
+    throw new Error(`Cannot connect to backend at ${API_BASE_URL}. Please check if the server is running.`);
   }
-
-  // Test PDF support
-  try {
-    const pdfResult = await checkPDFSupport();
-    results.pdfSupport = pdfResult.success 
-      ? { status: 'success', message: 'PDF support available', data: pdfResult.data }
-      : { status: 'error', message: pdfResult.error };
-  } catch (error) {
-    results.pdfSupport = { status: 'error', message: error.message };
-  }
-
-  // Test stats endpoint
-  try {
-    const statsResult = await getStats();
-    results.stats = { status: 'success', message: 'Stats endpoint working', data: statsResult };
-  } catch (error) {
-    results.stats = { status: 'error', message: error.message };
-  }
-
-  return results;
 };
 
-// Export API client for advanced usage
-export { apiClient };
-
-// Export configuration for debugging
+// Export API configuration for debugging
 export const getApiConfig = () => ({
-  baseURL: API_URL,
-  timeout: apiClient.defaults.timeout,
-  isDevelopment: import.meta.env.DEV,
-  environment: import.meta.env.MODE,
-  version: '1.0.0'
+  baseURL: API_BASE_URL,
+  timeout: api.defaults.timeout,
+  headers: api.defaults.headers,
 });
+
+// Utility function to check if backend is available
+export const isBackendAvailable = async () => {
+  try {
+    await checkHealth();
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Enhanced error handling wrapper
+export const withErrorHandling = (apiCall) => {
+  return async (...args) => {
+    try {
+      return await apiCall(...args);
+    } catch (error) {
+      // Log error details for debugging
+      console.error('API call failed:', {
+        function: apiCall.name,
+        args,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // Re-throw with enhanced error message
+      if (error.message.includes('Network Error') || error.code === 'ECONNREFUSED') {
+        throw new Error(
+          `Backend server is not accessible. Please ensure it's running on port 5001.\n\n` +
+          `Try running: python backend/app.py\n\n` +
+          `Original error: ${error.message}`
+        );
+      }
+      
+      throw error;
+    }
+  };
+};
+
+// Export wrapped versions for better error handling
+export const saveStatsWithErrorHandling = withErrorHandling(saveStats);
+export const getStatsWithErrorHandling = withErrorHandling(getStats);
+export const uploadPDFWithErrorHandling = withErrorHandling(uploadPDF);
+
+export default {
+  uploadPDF,
+  processText,
+  getStats,
+  saveStats,
+  resetStats,
+  getDetailedAnalytics,
+  getGoals,
+  createGoal,
+  getAchievements,
+  getDebugStats,
+  validateSessionData,
+  checkHealth,
+  testConnection,
+  getApiConfig,
+  isBackendAvailable
+};
