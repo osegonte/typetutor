@@ -112,3 +112,40 @@ def validate_stats_data(data):
         'valid': len(errors) == 0,
         'errors': errors
     }
+
+def validate_session_data(data):
+    """Validate session data for analytics"""
+    required_fields = ['wpm', 'accuracy', 'duration']
+    errors = []
+    
+    if not data:
+        return {'valid': False, 'errors': ['No data provided']}
+    
+    for field in required_fields:
+        if field not in data:
+            errors.append(f'Missing required field: {field}')
+    
+    # Validate numeric fields
+    try:
+        if 'wpm' in data:
+            wpm = int(data['wpm'])
+            if wpm < 0 or wpm > 300:
+                errors.append('WPM must be between 0 and 300')
+        
+        if 'accuracy' in data:
+            accuracy = int(data['accuracy'])
+            if accuracy < 0 or accuracy > 100:
+                errors.append('Accuracy must be between 0 and 100')
+        
+        if 'duration' in data:
+            duration = float(data['duration'])
+            if duration < 0:
+                errors.append('Duration must be positive')
+    
+    except (ValueError, TypeError):
+        errors.append('Invalid numeric data provided')
+    
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors
+    }
