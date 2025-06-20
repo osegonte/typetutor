@@ -1,96 +1,32 @@
-// Enhanced api.js - Complete API service with session management
+// api.js - Fixed API service for TypeTutor frontend
 import axios from 'axios';
 
-// Configuration
-const config = {
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
-  timeout: 15000, // 15 second timeout for better UX
+// FIXED: Updated to use port 5001 instead of 5000
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+// Create axios instance with enhanced error handling
+const apiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 15000, // 15 second timeout for PDF uploads
   headers: {
     'Content-Type': 'application/json',
   }
-};
+});
 
-// Create axios instance
-const apiClient = axios.create(config);
-
-// Session management
-let sessionManager = {
-  activeSessionId: null,
-  sessionStartTime: null,
-  autoSaveInterval: null,
-  
-  startSession() {
-    this.activeSessionId = this.generateSessionId();
-    this.sessionStartTime = Date.now();
-    
-    // Auto-save progress every 30 seconds
-    this.autoSaveInterval = setInterval(() => {
-      this.autoSaveProgress();
-    }, 30000);
-    
-    console.log(`🎯 Session started: ${this.activeSessionId}`);
-    return this.activeSessionId;
-  },
-  
-  endSession() {
-    if (this.autoSaveInterval) {
-      clearInterval(this.autoSaveInterval);
-      this.autoSaveInterval = null;
-    }
-    
-    const sessionId = this.activeSessionId;
-    this.activeSessionId = null;
-    this.sessionStartTime = null;
-    
-    console.log(`🏁 Session ended: ${sessionId}`);
-    return sessionId;
-  },
-  
-  generateSessionId() {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  },
-  
-  async autoSaveProgress() {
-    if (!this.activeSessionId) return;
-    
-    try {
-      // Get current session data from localStorage
-      const progressData = localStorage.getItem('currentSessionProgress');
-      if (progressData) {
-        const data = JSON.parse(progressData);
-        await saveSessionProgress({
-          sessionId: this.activeSessionId,
-          ...data,
-          autoSave: true
-        });
-        console.log('📄 Auto-saved session progress');
-      }
-    } catch (error) {
-      console.warn('⚠️ Auto-save failed:', error.message);
-    }
-  }
-};
-
-// Request interceptor for logging and session management
+// Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
-    // Add session ID to requests if available
-    if (sessionManager.activeSessionId) {
-      config.headers['X-Session-ID'] = sessionManager.activeSessionId;
-    }
-    
-    // Add client metadata
-    config.headers['X-Client-Version'] = '2.0.0';
-    config.headers['X-Client-Platform'] = navigator.platform;
-    
     // Log API calls in development
     if (import.meta.env.DEV) {
       console.log(`🔄 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     }
     
-    // Add timestamp to prevent caching issues
+    // Add timestamp to prevent caching
     if (config.method === 'get') {
-      config.params = { ...config.params, _t: Date.now() };
+      config.params = { 
+        ...config.params, 
+        _t: Date.now() 
+      };
     }
     
     return config;
@@ -101,52 +37,40 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for enhanced error handling
+// Response interceptor with better error handling
 apiClient.interceptors.response.use(
   (response) => {
     // Log successful responses in development
     if (import.meta.env.DEV) {
       console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url}`, response.data);
     }
-    
-    // Handle session-related headers
-    const sessionId = response.headers['x-session-id'];
-    if (sessionId && sessionId !== sessionManager.activeSessionId) {
-      console.log(`🔄 Session updated: ${sessionId}`);
-    }
-    
     return response;
   },
   (error) => {
-    // Enhanced error handling with retry logic
+    // Create consistent error format
     const errorInfo = {
-      message: 'Unknown error occurred',
+      message: 'An unexpected error occurred',
       status: error.response?.status || 500,
       statusText: error.response?.statusText || 'Internal Server Error',
       data: error.response?.data || null,
       isNetworkError: !error.response,
-      timestamp: new Date().toISOString(),
-      retryable: false
+      timestamp: new Date().toISOString()
     };
 
-    // Specific error messages and retry logic
+    // Handle different error types
     if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-      errorInfo.message = 'Cannot connect to server. Please check if the backend is running on port 5001.';
+      errorInfo.message = 'Cannot connect to TypeTutor server. Please make sure the backend is running on port 5001.';
       errorInfo.isNetworkError = true;
-      errorInfo.retryable = true;
+    } else if (error.code === 'ECONNABORTED') {
+      errorInfo.message = 'Request timed out. Please try again.';
     } else if (error.response?.status === 404) {
       errorInfo.message = 'API endpoint not found. Please check the server configuration.';
+    } else if (error.response?.status === 413) {
+      errorInfo.message = 'File too large. Please try a smaller file (max 10MB).';
+    } else if (error.response?.status === 429) {
+      errorInfo.message = 'Too many requests. Please wait a moment and try again.';
     } else if (error.response?.status === 500) {
       errorInfo.message = 'Server error occurred. Please try again later.';
-      errorInfo.retryable = true;
-    } else if (error.response?.status === 413) {
-      errorInfo.message = 'File too large. Please try a smaller file.';
-    } else if (error.response?.status === 429) {
-      errorInfo.message = 'Too many requests. Please wait a moment before trying again.';
-      errorInfo.retryable = true;
-    } else if (error.response?.status === 408) {
-      errorInfo.message = 'Request timeout. Please try again.';
-      errorInfo.retryable = true;
     } else if (error.response?.data?.error) {
       errorInfo.message = error.response.data.error;
     } else if (error.message) {
@@ -158,37 +82,14 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Retry wrapper for retryable requests
-const withRetry = async (requestFn, maxRetries = 3, delay = 1000) => {
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await requestFn();
-    } catch (error) {
-      lastError = error;
-      
-      if (!error.retryable || attempt === maxRetries) {
-        throw error;
-      }
-      
-      console.log(`🔄 Retry attempt ${attempt}/${maxRetries} after ${delay}ms`);
-      await new Promise(resolve => setTimeout(resolve, delay * attempt));
-    }
-  }
-  
-  throw lastError;
-};
-
-// Enhanced API Health Check
+// Health check function
 export const checkHealth = async () => {
   try {
-    const response = await withRetry(() => apiClient.get('/health'));
+    const response = await apiClient.get('/health');
     return {
       success: true,
       data: response.data,
-      timestamp: new Date().toISOString(),
-      latency: response.headers['x-response-time'] || 'unknown'
+      timestamp: new Date().toISOString()
     };
   } catch (error) {
     return {
@@ -200,97 +101,40 @@ export const checkHealth = async () => {
   }
 };
 
-// PDF Processing with Enhanced Progress Tracking
+// Upload PDF with enhanced error handling and progress tracking
 export const uploadPDF = async (file, onProgress = null) => {
+  // Input validation
   if (!file) {
-    throw new Error('No file provided');
+    throw { message: 'No file provided', success: false };
   }
 
   if (file.type !== 'application/pdf') {
-    throw new Error('Please select a PDF file');
+    throw { message: 'Please select a PDF file', success: false };
   }
 
-  if (file.size > 16 * 1024 * 1024) { // 16MB limit
-    throw new Error('File size must be less than 16MB');
+  if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    throw { message: 'File size must be less than 10MB', success: false };
   }
 
   const formData = new FormData();
   formData.append('file', file);
-
-  // Add processing options
-  formData.append('options', JSON.stringify({
-    extractImages: false,
-    preserveFormatting: true,
-    chunkSize: 1000,
-    sessionId: sessionManager.activeSessionId
-  }));
 
   try {
     const response = await apiClient.post('/upload-pdf', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      timeout: 60000, // 60 second timeout for large files
+      timeout: 30000, // 30 seconds for file uploads
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress({
-            loaded: progressEvent.loaded,
-            total: progressEvent.total,
-            percentage: percentCompleted,
-            stage: percentCompleted < 100 ? 'uploading' : 'processing'
-          });
+          onProgress({ percentage: percentCompleted, loaded: progressEvent.loaded, total: progressEvent.total });
         }
       }
     });
 
     return {
       success: true,
-      processingTime: response.headers['x-processing-time'],
-      ...response.data
-    };
-  } catch (error) {
-    throw {
-      success: false,
-      error: error.message,
-      details: error.data,
-      stage: 'upload_failed'
-    };
-  }
-};
-
-// Enhanced Text Processing
-export const processText = async (text, options = {}) => {
-  if (!text || typeof text !== 'string') {
-    throw new Error('Text content is required');
-  }
-
-  const trimmedText = text.trim();
-  if (trimmedText.length < 10) {
-    throw new Error('Text must be at least 10 characters long');
-  }
-
-  if (trimmedText.length > 100000) {
-    throw new Error('Text must be less than 100,000 characters');
-  }
-
-  const processingOptions = {
-    chunkSize: 500,
-    preserveLineBreaks: true,
-    removeExtraSpaces: true,
-    sessionId: sessionManager.activeSessionId,
-    ...options
-  };
-
-  try {
-    const response = await apiClient.post('/process-text', { 
-      text: trimmedText,
-      options: processingOptions
-    });
-
-    return {
-      success: true,
-      processingTime: response.headers['x-processing-time'],
       ...response.data
     };
   } catch (error) {
@@ -302,35 +146,51 @@ export const processText = async (text, options = {}) => {
   }
 };
 
-// Enhanced Statistics with Caching
-let statsCache = {
-  data: null,
-  timestamp: null,
-  ttl: 30000 // 30 seconds cache
-};
+// Process text content
+export const processText = async (text) => {
+  // Input validation
+  if (!text || typeof text !== 'string') {
+    throw { message: 'Text content is required', success: false };
+  }
 
-export const getStats = async (timeRange = 'all', useCache = true) => {
-  // Check cache first
-  if (useCache && statsCache.data && statsCache.timestamp) {
-    const age = Date.now() - statsCache.timestamp;
-    if (age < statsCache.ttl) {
-      console.log('📊 Using cached stats');
-      return statsCache.data;
-    }
+  const trimmedText = text.trim();
+  if (trimmedText.length < 10) {
+    throw { message: 'Text must be at least 10 characters long', success: false };
+  }
+
+  if (trimmedText.length > 50000) {
+    throw { message: 'Text must be less than 50,000 characters', success: false };
   }
 
   try {
-    const response = await withRetry(() => 
-      apiClient.get('/stats', {
-        params: { 
-          timeRange,
-          includeDetails: true,
-          sessionId: sessionManager.activeSessionId
-        }
-      })
-    );
+    const response = await apiClient.post('/process-text', { 
+      text: trimmedText
+    });
 
-    // Ensure we have default values
+    return {
+      success: true,
+      ...response.data
+    };
+  } catch (error) {
+    throw {
+      success: false,
+      error: error.message,
+      details: error.data
+    };
+  }
+};
+
+// Get user statistics with better error handling
+export const getStats = async (timeRange = 'all') => {
+  try {
+    const response = await apiClient.get('/stats', {
+      params: { 
+        timeRange,
+        includeDetails: true 
+      }
+    });
+
+    // Ensure we return consistent data structure
     const defaultStats = {
       averageWpm: 0,
       accuracy: 0,
@@ -339,33 +199,17 @@ export const getStats = async (timeRange = 'all', useCache = true) => {
       totalSessions: 0,
       personalBest: 0,
       lastSessionDate: null,
-      recentSessions: [],
-      weeklyProgress: [],
-      monthlyProgress: [],
-      accuracyTrend: [],
-      difficultyBreakdown: {}
+      recentSessions: []
     };
 
-    const enhancedStats = {
+    return {
       ...defaultStats,
-      ...response.data,
-      cacheTime: new Date().toISOString()
+      ...response.data
     };
-
-    // Update cache
-    statsCache.data = enhancedStats;
-    statsCache.timestamp = Date.now();
-
-    return enhancedStats;
   } catch (error) {
     console.error('Failed to fetch stats:', error.message);
     
-    // Return cached data if available, otherwise defaults
-    if (statsCache.data) {
-      console.log('📊 Using stale cached stats due to error');
-      return { ...statsCache.data, error: error.message };
-    }
-    
+    // Return default stats structure if API fails
     return {
       averageWpm: 0,
       accuracy: 0,
@@ -374,137 +218,63 @@ export const getStats = async (timeRange = 'all', useCache = true) => {
       totalSessions: 0,
       personalBest: 0,
       lastSessionDate: null,
-      recentSessions: [],
-      error: error.message
+      recentSessions: []
     };
   }
 };
 
-// Enhanced Session Statistics Saving
-export const saveStats = async (sessionData, options = {}) => {
-  if (!sessionData) {
-    throw new Error('Session data is required');
+// Save typing session statistics
+export const saveStats = async (sessionData) => {
+  // Input validation
+  if (!sessionData || typeof sessionData !== 'object') {
+    throw { message: 'Session data is required', success: false };
   }
 
   // Validate required fields
   const requiredFields = ['wpm', 'accuracy', 'duration'];
   for (const field of requiredFields) {
-    if (typeof sessionData[field] !== 'number') {
-      throw new Error(`${field} must be a number`);
+    if (typeof sessionData[field] !== 'number' || sessionData[field] < 0) {
+      throw { message: `${field} must be a positive number`, success: false };
     }
   }
 
-  // Enhanced session data
+  // Validate reasonable ranges
+  if (sessionData.wpm > 300) {
+    throw { message: 'WPM seems unusually high. Please check your data.', success: false };
+  }
+
+  if (sessionData.accuracy > 100) {
+    throw { message: 'Accuracy cannot exceed 100%', success: false };
+  }
+
+  // Add metadata
   const enrichedData = {
     ...sessionData,
-    sessionId: sessionManager.activeSessionId || sessionManager.generateSessionId(),
     timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
-    platform: navigator.platform,
-    viewport: {
-      width: window.innerWidth,
-      height: window.innerHeight
-    },
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    sessionDuration: sessionManager.sessionStartTime ? 
-      Date.now() - sessionManager.sessionStartTime : null,
-    ...options
+    sessionId: generateSessionId(),
+    version: '1.0'
   };
 
   try {
-    const response = await withRetry(() => 
-      apiClient.post('/save-stats', enrichedData)
-    );
-
-    // Clear stats cache to force refresh
-    statsCache.data = null;
-    statsCache.timestamp = null;
-
-    // Clear any saved progress
-    localStorage.removeItem('currentSessionProgress');
-
+    const response = await apiClient.post('/save-stats', enrichedData);
     return {
       success: true,
-      sessionId: enrichedData.sessionId,
       ...response.data
     };
   } catch (error) {
-    // Save to localStorage as backup
-    const backupKey = `backup_session_${Date.now()}`;
-    localStorage.setItem(backupKey, JSON.stringify(enrichedData));
-    console.log(`💾 Session saved to backup: ${backupKey}`);
-
     throw {
       success: false,
       error: error.message,
-      details: error.data,
-      backupKey
+      details: error.data
     };
   }
 };
 
-// New: Save Session Progress (for auto-save)
-export const saveSessionProgress = async (progressData) => {
-  if (!progressData) {
-    throw new Error('Progress data is required');
-  }
-
+// Reset user statistics (for testing/admin)
+export const resetStats = async () => {
   try {
-    const response = await apiClient.post('/save-progress', {
-      ...progressData,
-      timestamp: new Date().toISOString()
-    });
-
-    return {
-      success: true,
-      ...response.data
-    };
-  } catch (error) {
-    // Don't throw for progress saves, just log
-    console.warn('Progress save failed:', error.message);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-};
-
-// New: Load Session Progress
-export const loadSessionProgress = async (sessionId) => {
-  try {
-    const response = await apiClient.get(`/load-progress/${sessionId}`);
-    return {
-      success: true,
-      ...response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-};
-
-// Enhanced Statistics Reset
-export const resetStats = async (confirmation = false) => {
-  if (!confirmation) {
-    throw new Error('Confirmation required to reset statistics');
-  }
-
-  try {
-    const response = await apiClient.post('/reset-stats', {
-      confirmation: true,
-      timestamp: new Date().toISOString(),
-      sessionId: sessionManager.activeSessionId
-    });
-
-    // Clear all caches
-    statsCache.data = null;
-    statsCache.timestamp = null;
-    localStorage.removeItem('personalBest');
-    localStorage.removeItem('currentStreak');
-    localStorage.removeItem('lastSessionDate');
-
+    const response = await apiClient.post('/reset-stats');
     return {
       success: true,
       message: 'Statistics reset successfully',
@@ -519,80 +289,13 @@ export const resetStats = async (confirmation = false) => {
   }
 };
 
-// New: Get Practice Recommendations
-export const getPracticeRecommendations = async () => {
-  try {
-    const response = await apiClient.get('/recommendations', {
-      params: {
-        sessionId: sessionManager.activeSessionId
-      }
-    });
-
-    return {
-      success: true,
-      ...response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      recommendations: []
-    };
-  }
-};
-
-// New: Get Leaderboard
-export const getLeaderboard = async (timeframe = 'week') => {
-  try {
-    const response = await apiClient.get('/leaderboard', {
-      params: { timeframe }
-    });
-
-    return {
-      success: true,
-      ...response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      leaderboard: []
-    };
-  }
-};
-
-// Enhanced Debug Information
+// Get debug information
 export const getDebugInfo = async () => {
   try {
     const response = await apiClient.get('/debug-info');
-    
-    const clientInfo = {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      language: navigator.language,
-      cookiesEnabled: navigator.cookieEnabled,
-      onlineStatus: navigator.onLine,
-      viewport: {
-        width: window.innerWidth,
-        height: window.innerHeight
-      },
-      screen: {
-        width: window.screen.width,
-        height: window.screen.height,
-        colorDepth: window.screen.colorDepth
-      },
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      sessionManager: {
-        activeSessionId: sessionManager.activeSessionId,
-        sessionStartTime: sessionManager.sessionStartTime
-      }
-    };
-
     return {
       success: true,
-      server: response.data,
-      client: clientInfo,
-      timestamp: new Date().toISOString()
+      data: response.data
     };
   } catch (error) {
     return {
@@ -603,174 +306,76 @@ export const getDebugInfo = async () => {
   }
 };
 
-// Enhanced Connection Testing
+// PDF support check
+export const checkPDFSupport = async () => {
+  try {
+    const response = await apiClient.get('/pdf-support');
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    console.warn('PDF support check failed:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+// Utility functions
+const generateSessionId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
+// Test API connectivity
 export const testConnection = async () => {
   const results = {
-    health: { status: 'pending', startTime: Date.now() },
-    pdfSupport: { status: 'pending', startTime: Date.now() },
-    stats: { status: 'pending', startTime: Date.now() },
-    upload: { status: 'pending', startTime: Date.now() }
+    health: { status: 'pending' },
+    pdfSupport: { status: 'pending' },
+    stats: { status: 'pending' },
+    baseURL: API_URL
   };
 
   // Test health endpoint
   try {
-    const startTime = Date.now();
-    await checkHealth();
-    results.health = { 
-      status: 'success', 
-      message: 'Health check passed',
-      responseTime: Date.now() - startTime
-    };
+    const healthResult = await checkHealth();
+    results.health = healthResult.success 
+      ? { status: 'success', message: 'Health check passed', data: healthResult.data }
+      : { status: 'error', message: healthResult.error };
   } catch (error) {
-    results.health = { 
-      status: 'error', 
-      message: error.message,
-      responseTime: Date.now() - results.health.startTime
-    };
+    results.health = { status: 'error', message: error.message };
   }
 
   // Test PDF support
   try {
-    const startTime = Date.now();
-    const response = await apiClient.get('/pdf-support');
-    results.pdfSupport = { 
-      status: 'success', 
-      message: 'PDF support available',
-      responseTime: Date.now() - startTime,
-      data: response.data
-    };
+    const pdfResult = await checkPDFSupport();
+    results.pdfSupport = pdfResult.success 
+      ? { status: 'success', message: 'PDF support available', data: pdfResult.data }
+      : { status: 'error', message: pdfResult.error };
   } catch (error) {
-    results.pdfSupport = { 
-      status: 'error', 
-      message: error.message,
-      responseTime: Date.now() - results.pdfSupport.startTime
-    };
+    results.pdfSupport = { status: 'error', message: error.message };
   }
 
   // Test stats endpoint
   try {
-    const startTime = Date.now();
-    await getStats('all', false); // Don't use cache for testing
-    results.stats = { 
-      status: 'success', 
-      message: 'Stats endpoint working',
-      responseTime: Date.now() - startTime
-    };
+    const statsResult = await getStats();
+    results.stats = { status: 'success', message: 'Stats endpoint working', data: statsResult };
   } catch (error) {
-    results.stats = { 
-      status: 'error', 
-      message: error.message,
-      responseTime: Date.now() - results.stats.startTime
-    };
-  }
-
-  // Test upload endpoint (with empty request)
-  try {
-    const startTime = Date.now();
-    await apiClient.post('/upload-pdf'); // This should fail gracefully
-  } catch (error) {
-    const responseTime = Date.now() - startTime;
-    if (error.status === 400) {
-      results.upload = { 
-        status: 'success', 
-        message: 'Upload endpoint responding correctly',
-        responseTime
-      };
-    } else {
-      results.upload = { 
-        status: 'error', 
-        message: error.message,
-        responseTime
-      };
-    }
+    results.stats = { status: 'error', message: error.message };
   }
 
   return results;
 };
 
-// Utility Functions
-export const clearCache = () => {
-  statsCache.data = null;
-  statsCache.timestamp = null;
-  console.log('🧹 API cache cleared');
-};
-
-export const getSessionManager = () => sessionManager;
-
-export const startSession = () => sessionManager.startSession();
-
-export const endSession = () => sessionManager.endSession();
-
-// Backup and Recovery
-export const getBackupSessions = () => {
-  const backups = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key.startsWith('backup_session_')) {
-      try {
-        const data = JSON.parse(localStorage.getItem(key));
-        backups.push({ key, data });
-      } catch (error) {
-        console.warn(`Invalid backup data for ${key}`);
-      }
-    }
-  }
-  return backups;
-};
-
-export const restoreBackupSession = async (backupKey) => {
-  try {
-    const backupData = localStorage.getItem(backupKey);
-    if (!backupData) {
-      throw new Error('Backup not found');
-    }
-
-    const sessionData = JSON.parse(backupData);
-    await saveStats(sessionData);
-    
-    // Remove backup after successful restore
-    localStorage.removeItem(backupKey);
-    
-    return { success: true, message: 'Session restored successfully' };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-// Export configuration and client
+// Export API client for advanced usage
 export { apiClient };
 
+// Export configuration for debugging
 export const getApiConfig = () => ({
-  baseURL: config.baseURL,
-  timeout: config.timeout,
+  baseURL: API_URL,
+  timeout: apiClient.defaults.timeout,
   isDevelopment: import.meta.env.DEV,
   environment: import.meta.env.MODE,
-  cacheStatus: {
-    statsCache: {
-      hasData: !!statsCache.data,
-      age: statsCache.timestamp ? Date.now() - statsCache.timestamp : null,
-      ttl: statsCache.ttl
-    }
-  }
+  version: '1.0.0'
 });
-
-// Auto-initialize session manager
-if (typeof window !== 'undefined') {
-  // Resume session if page was refreshed
-  const savedSessionId = sessionStorage.getItem('activeSessionId');
-  const savedStartTime = sessionStorage.getItem('sessionStartTime');
-  
-  if (savedSessionId && savedStartTime) {
-    sessionManager.activeSessionId = savedSessionId;
-    sessionManager.sessionStartTime = parseInt(savedStartTime);
-    console.log(`🔄 Resumed session: ${savedSessionId}`);
-  }
-  
-  // Save session state on page unload
-  window.addEventListener('beforeunload', () => {
-    if (sessionManager.activeSessionId) {
-      sessionStorage.setItem('activeSessionId', sessionManager.activeSessionId);
-      sessionStorage.setItem('sessionStartTime', sessionManager.sessionStartTime.toString());
-    }
-  });
-}
