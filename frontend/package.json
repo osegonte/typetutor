@@ -10,10 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
     "axios": "^1.6.2",
+    "date-fns": "^4.1.0",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.292.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^2.15.3"
   },
   "devDependencies": {
     "@eslint/js": "^8.55.0",

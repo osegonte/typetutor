@@ -1,6 +1,6 @@
-// Complete TypeTutorApp.jsx with working practice functionality
+// Updated TypeTutorApp.jsx with Paragraph-based Text Display and Original Homepage Design
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp } from 'lucide-react';
+import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp, ChevronLeft } from 'lucide-react';
 import { uploadPDF, processText, getStats, saveStats } from '../services/api';
 import DebuggingPanel from './DebuggingPanel';
 
@@ -114,7 +114,7 @@ const TypeTutorApp = () => {
   );
 };
 
-// Home Screen Component
+// ORIGINAL HOMEPAGE DESIGN - Restored
 const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingInProgress, setTypingInProgress }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -191,37 +191,67 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
 
   return (
     <div className="space-y-8">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-2">TypeTutor Study App</h2>
-        <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-          Build your typing speed and accuracy while learning valuable content
+      {/* Hero Section */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+          Learn While You Type
+        </h1>
+        <p className={`text-xl ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto leading-relaxed`}>
+          Transform your typing practice into active learning. Study valuable content while building muscle memory and speed.
         </p>
       </div>
 
-      <div className="flex justify-end">
+      {/* Quick Stats/Actions Bar */}
+      <div className="flex justify-between items-center mb-8">
+        <div className="flex items-center space-x-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">0</div>
+            <div className="text-sm text-gray-500">Sessions Today</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">0</div>
+            <div className="text-sm text-gray-500">Minutes Practiced</div>
+          </div>
+        </div>
+        
         <button 
-          className={`flex items-center space-x-2 px-4 py-2 rounded-md ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+          className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'}`}
           onClick={() => setActiveTab('stats')}
         >
           <BarChart2 size={20} />
-          <span>View Stats</span>
+          <span>View Progress</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
         {/* Upload Section */}
-        <div className={`rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} p-6 h-72 flex flex-col`}>
-          <h3 className="font-semibold text-lg mb-2">Upload Learning Material</h3>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-            Upload a text or PDF file to practice with
-          </p>
+        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900 border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'}`}>
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold mb-2 flex items-center">
+              <Upload className="mr-3 text-purple-600" size={24} />
+              Upload Study Material
+            </h3>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Upload PDFs, textbooks, articles, or notes to practice with educational content
+            </p>
+          </div>
           
-          <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-md border-gray-600 m-2 relative">
+          <div className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
+            isLoading 
+              ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20' 
+              : darkMode 
+                ? 'border-gray-700 hover:border-gray-600' 
+                : 'border-gray-300 hover:border-gray-400'
+          }`}>
             {isLoading && (
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center rounded-md">
-                <div className="text-white mb-2">Processing...</div>
+              <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 rounded-xl flex flex-col items-center justify-center">
+                <div className="mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                </div>
+                <div className="text-sm font-medium mb-2">Processing PDF...</div>
                 {uploadProgress > 0 && (
-                  <div className="w-3/4 bg-gray-700 rounded-full h-2">
+                  <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <div 
                       className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
@@ -230,10 +260,15 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
                 )}
               </div>
             )}
-            <Upload className={`${darkMode ? 'text-gray-600' : 'text-gray-400'} mb-2`} size={24} />
-            <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-600'} text-center mb-2`}>
-              Drag and drop your file here or click to browse
+            
+            <FileText className={`mx-auto mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} size={48} />
+            <p className={`text-lg font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              Drop your PDF here or click to browse
             </p>
+            <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'} mb-4`}>
+              Supports PDF files up to 10MB
+            </p>
+            
             <input
               type="file"
               id="file-upload"
@@ -243,81 +278,131 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
               disabled={isLoading}
             />
             <button 
-              className={`text-sm px-4 py-1.5 rounded-md ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} disabled:opacity-50`}
+              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                isLoading 
+                  ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed' 
+                  : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg'
+              }`}
               onClick={() => document.getElementById('file-upload')?.click()}
               disabled={isLoading}
             >
-              Browse Files
+              Choose File
             </button>
           </div>
           
           {errorMessage && (
-            <div className={`mt-2 p-2 text-sm text-red-500 bg-red-100 dark:bg-red-900 dark:text-red-200 rounded-md`}>
+            <div className={`mt-4 p-4 rounded-xl text-sm ${darkMode ? 'bg-red-900/50 text-red-200 border border-red-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
               {errorMessage}
             </div>
           )}
         </div>
 
         {/* Custom Text Section */}
-        <div className={`rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} p-6 h-72 flex flex-col`}>
-          <h3 className="font-semibold text-lg mb-2">Custom Text</h3>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-2`}>
-            Paste or type the text you want to practice
-          </p>
+        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900 border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'}`}>
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold mb-2 flex items-center">
+              <FileText className="mr-3 text-blue-600" size={24} />
+              Custom Text Practice
+            </h3>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Paste your own study content, notes, or any text you want to practice with
+            </p>
+          </div>
           
-          <div className="flex-1 flex flex-col">
+          <div className="space-y-4">
             <textarea 
-              className={`flex-1 p-3 rounded-md resize-none ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-50 text-gray-800 border-gray-300'} border focus:outline-none focus:ring-2 focus:ring-purple-500`}
-              placeholder="Paste or type your practice text here..."
+              className={`w-full h-40 p-4 rounded-xl resize-none border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 ${
+                darkMode 
+                  ? 'bg-gray-800 text-gray-200 border-gray-700 placeholder-gray-500' 
+                  : 'bg-gray-50 text-gray-800 border-gray-300 placeholder-gray-400'
+              }`}
+              placeholder="Paste or type your practice text here...
+
+Try content like:
+• Study notes from class
+• Book chapters or articles  
+• Technical documentation
+• Language learning material
+• Any educational content you want to memorize"
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               disabled={isLoading}
             />
-            <div className="mt-2 text-xs text-gray-500">
-              {customText ? customText.length : 0} characters
+            
+            <div className="flex justify-between items-center text-sm">
+              <span className={darkMode ? 'text-gray-500' : 'text-gray-400'}>
+                {customText ? customText.length : 0} characters
+              </span>
+              
+              {customText && customText.trim() && (
+                <div className="flex items-center space-x-2 text-green-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>Ready to practice</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Start Button */}
-      <div className="flex justify-center mt-6">
+      {/* Start Practice Button */}
+      <div className="text-center mb-12">
         <button 
-          className={`px-6 py-3 rounded-md font-medium flex items-center transition-all duration-200 ${
-            customText && customText.trim() ? 'bg-purple-600 hover:bg-purple-700 text-white' : 
-            darkMode ? 'bg-gray-800 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+          className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 ${
+            customText && customText.trim() 
+              ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-xl hover:shadow-2xl' 
+              : darkMode 
+                ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
           disabled={!customText || !customText.trim() || isLoading}
           onClick={handleSubmitText}
         >
-          {isLoading ? 'Processing...' : 'Start Typing Practice'}
+          {isLoading ? (
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Processing...</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-3">
+              <Play size={20} />
+              <span>Start Typing Practice</span>
+            </div>
+          )}
         </button>
+        
+        {!customText?.trim() && (
+          <p className={`mt-3 text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+            Upload a file or enter text to begin practicing
+          </p>
+        )}
       </div>
 
-      {/* Features Section */}
-      <div className={`mt-12 rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-gray-100 border-gray-200'} p-6`}>
-        <h3 className="text-lg font-semibold text-center mb-6">Why TypeTutor?</h3>
+      {/* Features Showcase */}
+      <div className={`rounded-2xl border p-8 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-gradient-to-br from-purple-50 to-blue-50 border-gray-200'}`}>
+        <h3 className="text-2xl font-bold text-center mb-8">Why Choose TypeTutor Study Edition?</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <FeatureCard 
             darkMode={darkMode}
-            title="Learn While Typing"
-            description="Practice with study materials to improve retention"
-            icon={<FileText size={24} />}
+            icon={<Target className="text-purple-600" size={32} />}
+            title="Learn While Practicing"
+            description="Turn typing practice into active learning. Study textbooks, articles, and notes while building muscle memory."
+            highlight={true}
           />
           
           <FeatureCard 
             darkMode={darkMode}
-            title="Track Progress"
-            description="View detailed stats on typing speed and accuracy"
-            icon={<BarChart2 size={24} />}
+            icon={<BarChart2 className="text-blue-600" size={32} />}
+            title="Detailed Analytics"
+            description="Track your progress with comprehensive statistics including WPM, accuracy, consistency, and improvement trends."
           />
           
           <FeatureCard 
             darkMode={darkMode}
-            title="Build Consistency"
-            description="Track daily streaks and practice minutes"
-            icon={<ChevronRight size={24} />}
+            icon={<Trophy className="text-yellow-600" size={32} />}
+            title="Smart Progress Tracking"
+            description="Set goals, maintain streaks, and see your improvement over time with intelligent performance analysis."
           />
         </div>
       </div>
@@ -325,38 +410,54 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
   );
 };
 
-// Feature Card Component
-const FeatureCard = ({ darkMode, title, description, icon }) => {
+// Enhanced Feature Card Component
+const FeatureCard = ({ darkMode, icon, title, description, highlight = false }) => {
   return (
-    <div className="text-center">
-      <div className="flex justify-center">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+    <div className={`text-center p-6 rounded-xl transition-all duration-200 hover:transform hover:scale-105 ${
+      highlight 
+        ? darkMode 
+          ? 'bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-purple-700' 
+          : 'bg-gradient-to-br from-purple-100 to-blue-100 border border-purple-200'
+        : darkMode 
+          ? 'bg-gray-800/50' 
+          : 'bg-white/50'
+    }`}>
+      <div className="flex justify-center mb-4">
+        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+          darkMode ? 'bg-gray-800' : 'bg-white'
+        } shadow-lg`}>
           {icon}
         </div>
       </div>
-      <h4 className="font-semibold mt-3 mb-1">{title}</h4>
-      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+      <h4 className="font-bold text-lg mb-3">{title}</h4>
+      <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
         {description}
       </p>
     </div>
   );
 };
 
-// Practice Screen Component (Fixed)
+// UPDATED PRACTICE SCREEN - Paragraph-based View
 const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
-  // State management
-  const [currentText, setCurrentText] = useState('');
+  // Core state
+  const [fullText, setFullText] = useState('');
+  const [paragraphs, setParagraphs] = useState([]);
+  const [currentParagraphIndex, setCurrentParagraphIndex] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  
+  // Performance metrics
   const [startTime, setStartTime] = useState(null);
   const [wpm, setWpm] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [errors, setErrors] = useState(0);
   const [errorPositions, setErrorPositions] = useState(new Set());
+  
+  // Session state
   const [sessionStats, setSessionStats] = useState(null);
   const [showCompletion, setShowCompletion] = useState(false);
   const [personalBest, setPersonalBest] = useState(false);
@@ -364,16 +465,28 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
   const inputRef = useRef(null);
   const intervalRef = useRef(null);
 
-  // Initialize text
+  // Initialize text and split into paragraphs
   useEffect(() => {
-    const defaultText = `The art of typing is not just about speed, but about developing a rhythm and flow that becomes second nature. Through consistent practice and attention to proper technique, anyone can develop excellent typing skills. Focus on accuracy first, then speed will naturally follow. Remember to keep your fingers on the home row and use all ten fingers for optimal efficiency.`;
+    const defaultText = `The art of typing is not just about speed, but about developing a rhythm and flow that becomes second nature. Through consistent practice and attention to proper technique, anyone can develop excellent typing skills.
+
+Focus on accuracy first, then speed will naturally follow. Remember to keep your fingers on the home row and use all ten fingers for optimal efficiency.
+
+Proper posture is essential for comfortable and efficient typing. Sit up straight with your feet flat on the floor and your wrists in a neutral position.
+
+Regular practice sessions, even just 10-15 minutes a day, will lead to significant improvement over time. The key is consistency and patience with yourself as you build this valuable skill.`;
     
     try {
-      if (customText && typeof customText === 'string' && customText.trim()) {
-        setCurrentText(customText.trim());
-      } else {
-        setCurrentText(defaultText);
-      }
+      const textToUse = customText && customText.trim() ? customText.trim() : defaultText;
+      setFullText(textToUse);
+      
+      // Split text into paragraphs and filter out empty ones
+      const paragraphArray = textToUse
+        .split(/\n\s*\n/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+      
+      setParagraphs(paragraphArray);
+      setCurrentParagraphIndex(0);
       
       // Focus input when component mounts
       if (inputRef.current) {
@@ -383,7 +496,8 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
       }
     } catch (error) {
       console.error('Error setting text:', error);
-      setCurrentText(defaultText);
+      setFullText(defaultText);
+      setParagraphs([defaultText]);
     }
   }, [customText]);
 
@@ -415,9 +529,10 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         const currentWpm = minutesElapsed > 0 ? Math.round(wordsTyped / minutesElapsed) : 0;
         setWpm(currentWpm);
 
+        const currentParagraph = paragraphs[currentParagraphIndex] || '';
         let correctChars = 0;
         for (let i = 0; i < userInput.length; i++) {
-          if (i < currentText.length && userInput[i] === currentText[i]) {
+          if (i < currentParagraph.length && userInput[i] === currentParagraph[i]) {
             correctChars++;
           }
         }
@@ -427,12 +542,13 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         console.error('Error calculating metrics:', error);
       }
     }
-  }, [userInput, timeElapsed, currentText]);
+  }, [userInput, timeElapsed, paragraphs, currentParagraphIndex]);
 
   // Handle input changes
   const handleInputChange = useCallback((e) => {
     try {
       const value = e.target.value;
+      const currentParagraph = paragraphs[currentParagraphIndex] || '';
       
       // Start session on first keystroke
       if (!isActive && value.length === 1) {
@@ -440,8 +556,8 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         setStartTime(Date.now());
       }
 
-      // Prevent typing beyond text length
-      if (value.length <= currentText.length) {
+      // Prevent typing beyond current paragraph length
+      if (value.length <= currentParagraph.length) {
         setUserInput(value);
         setCurrentIndex(value.length);
 
@@ -450,7 +566,7 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         let errorCount = 0;
         
         for (let i = 0; i < value.length; i++) {
-          if (i < currentText.length && value[i] !== currentText[i]) {
+          if (i < currentParagraph.length && value[i] !== currentParagraph[i]) {
             newErrors.add(i);
             errorCount++;
           }
@@ -459,42 +575,60 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         setErrorPositions(newErrors);
         setErrors(errorCount);
 
-        // Check completion
-        if (value.length === currentText.length) {
-          completeSession(value);
+        // Check paragraph completion
+        if (value.length === currentParagraph.length) {
+          advanceToNextParagraph();
         }
       }
     } catch (error) {
       console.error('Error handling input:', error);
     }
-  }, [currentText, isActive]);
+  }, [paragraphs, currentParagraphIndex, isActive]);
+
+  // Advance to next paragraph
+  const advanceToNextParagraph = useCallback(() => {
+    if (currentParagraphIndex < paragraphs.length - 1) {
+      // Move to next paragraph
+      setCurrentParagraphIndex(prev => prev + 1);
+      setUserInput('');
+      setCurrentIndex(0);
+      setErrorPositions(new Set());
+      
+      // Brief pause for transition
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 200);
+    } else {
+      // All paragraphs completed
+      completeSession();
+    }
+  }, [currentParagraphIndex, paragraphs.length]);
 
   // Complete session
-  const completeSession = useCallback(async (finalInput) => {
+  const completeSession = useCallback(async () => {
     try {
       setIsComplete(true);
       setIsActive(false);
       
       const endTime = Date.now();
       const totalTime = startTime ? (endTime - startTime) / 1000 : 0;
-      const finalWpm = totalTime > 0 ? Math.round((finalInput.length / 5) / (totalTime / 60)) : 0;
       
-      let correctChars = 0;
-      for (let i = 0; i < finalInput.length; i++) {
-        if (i < currentText.length && finalInput[i] === currentText[i]) {
-          correctChars++;
-        }
-      }
-      const finalAccuracy = finalInput.length > 0 ? Math.round((correctChars / finalInput.length) * 100) : 100;
+      // Calculate stats for entire session
+      const totalCharacters = paragraphs.reduce((sum, p) => sum + p.length, 0);
+      const finalWpm = totalTime > 0 ? Math.round((totalCharacters / 5) / (totalTime / 60)) : 0;
+      const finalAccuracy = accuracy;
 
       const stats = {
         wpm: finalWpm,
         accuracy: finalAccuracy,
         timeElapsed: Math.round(totalTime),
         errors: errors,
-        totalCharacters: finalInput.length,
-        charactersPerMinute: totalTime > 0 ? Math.round(finalInput.length / (totalTime / 60)) : 0,
-        completedAt: new Date().toISOString()
+        totalCharacters,
+        charactersPerMinute: totalTime > 0 ? Math.round(totalCharacters / (totalTime / 60)) : 0,
+        completedAt: new Date().toISOString(),
+        paragraphsCompleted: paragraphs.length
       };
 
       setSessionStats(stats);
@@ -517,7 +651,7 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
           accuracy: finalAccuracy,
           duration: Math.round(totalTime),
           errors: errors,
-          mode: 'practice',
+          mode: 'paragraph_practice',
           itemType: customText ? 'Custom Text' : 'Default Practice',
           completedAt: new Date().toISOString()
         });
@@ -529,13 +663,14 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     } catch (error) {
       console.error('Error completing session:', error);
     }
-  }, [startTime, errors, currentText, customText]);
+  }, [startTime, errors, accuracy, paragraphs, customText]);
 
   // Reset session
   const resetSession = useCallback(() => {
     try {
       setUserInput('');
       setCurrentIndex(0);
+      setCurrentParagraphIndex(0);
       setIsActive(false);
       setIsPaused(false);
       setIsComplete(false);
@@ -573,7 +708,23 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     }
   }, [isPaused]);
 
-  // Character styling
+  // Navigate paragraphs manually
+  const goToParagraph = useCallback((index) => {
+    if (index >= 0 && index < paragraphs.length && !isActive) {
+      setCurrentParagraphIndex(index);
+      setUserInput('');
+      setCurrentIndex(0);
+      setErrorPositions(new Set());
+      
+      if (inputRef.current) {
+        setTimeout(() => {
+          inputRef.current.focus();
+        }, 100);
+      }
+    }
+  }, [paragraphs.length, isActive]);
+
+  // Character styling for visual feedback
   const getCharacterStyle = (index) => {
     try {
       if (index < userInput.length) {
@@ -592,7 +743,7 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     }
   };
 
-  // Format time
+  // Format time display
   const formatTime = (seconds) => {
     try {
       const mins = Math.floor(seconds / 60);
@@ -627,9 +778,11 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
     };
   }, [isActive, isComplete, togglePause, resetSession]);
 
-  const progressPercentage = currentText.length > 0 ? (currentIndex / currentText.length) * 100 : 0;
+  const currentParagraph = paragraphs[currentParagraphIndex] || '';
+  const progressPercentage = currentParagraph.length > 0 ? (currentIndex / currentParagraph.length) * 100 : 0;
+  const overallProgress = paragraphs.length > 0 ? ((currentParagraphIndex + (progressPercentage / 100)) / paragraphs.length) * 100 : 0;
 
-  if (!currentText) {
+  if (!currentParagraph) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 px-4">
         <div className="text-center py-12">
@@ -683,58 +836,155 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard darkMode={darkMode} icon={<Zap size={20} />} label="Speed" value={`${wpm} WPM`} />
-        <StatCard darkMode={darkMode} icon={<Target size={20} />} label="Accuracy" value={`${accuracy}%`} />
-        <StatCard darkMode={darkMode} icon={<Clock size={20} />} label="Time" value={formatTime(timeElapsed)} />
-        <StatCard darkMode={darkMode} icon={<AlertCircle size={20} />} label="Errors" value={errors} />
-      </div>
-
-      {/* Progress */}
+      {/* Paragraph Navigation */}
       <div className={`rounded-2xl border p-6 ${
         darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
       }`}>
         <div className="flex justify-between items-center mb-4">
-          <span className="text-sm font-medium">Progress</span>
-          <span className="text-sm text-gray-500">
-            {currentIndex} / {currentText.length} characters ({Math.round(progressPercentage)}%)
+          <h3 className="text-lg font-semibold">Paragraph Progress</h3>
+          <span className="text-sm font-medium text-purple-600">
+            {currentParagraphIndex + 1} of {paragraphs.length}
           </span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-          <div
-            className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-300 ease-out"
-            style={{ width: `${progressPercentage}%` }}
-          />
+        
+        <div className="flex items-center space-x-2 mb-4">
+          <button
+            onClick={() => goToParagraph(currentParagraphIndex - 1)}
+            disabled={currentParagraphIndex === 0 || isActive}
+            className={`p-2 rounded-lg ${
+              currentParagraphIndex === 0 || isActive 
+                ? 'opacity-50 cursor-not-allowed' 
+                : darkMode 
+                  ? 'bg-gray-700 hover:bg-gray-600' 
+                  : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          <div className="flex-1 flex space-x-1">
+            {paragraphs.map((_, index) => (
+              <div
+                key={index}
+                className={`h-2 rounded-full flex-1 transition-all duration-300 ${
+                  index < currentParagraphIndex
+                    ? 'bg-green-500'
+                    : index === currentParagraphIndex
+                      ? 'bg-gradient-to-r from-purple-500 to-purple-600'
+                      : darkMode
+                        ? 'bg-gray-700'
+                        : 'bg-gray-200'
+                }`}
+                style={{
+                  background: index === currentParagraphIndex 
+                    ? `linear-gradient(to right, #8B5CF6 ${progressPercentage}%, ${darkMode ? '#374151' : '#E5E7EB'} ${progressPercentage}%)`
+                    : undefined
+                }}
+              />
+            ))}
+          </div>
+          
+          <button
+            onClick={() => goToParagraph(currentParagraphIndex + 1)}
+            disabled={currentParagraphIndex === paragraphs.length - 1 || isActive}
+            className={`p-2 rounded-lg ${
+              currentParagraphIndex === paragraphs.length - 1 || isActive 
+                ? 'opacity-50 cursor-not-allowed' 
+                : darkMode 
+                  ? 'bg-gray-700 hover:bg-gray-600' 
+                  : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        
+        <div className="text-sm text-gray-500 text-center">
+          Overall Progress: {Math.round(overallProgress)}% complete
         </div>
       </div>
 
-      {/* Text Display */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard 
+          darkMode={darkMode} 
+          icon={<Zap size={20} />} 
+          label="Speed" 
+          value={`${wpm} WPM`}
+        />
+        <StatCard 
+          darkMode={darkMode} 
+          icon={<Target size={20} />} 
+          label="Accuracy" 
+          value={`${accuracy}%`}
+        />
+        <StatCard 
+          darkMode={darkMode} 
+          icon={<Clock size={20} />} 
+          label="Time" 
+          value={formatTime(timeElapsed)} 
+        />
+        <StatCard 
+          darkMode={darkMode} 
+          icon={<AlertCircle size={20} />} 
+          label="Errors" 
+          value={errors}
+        />
+      </div>
+
+      {/* Current Paragraph Display */}
       <div className={`rounded-2xl border p-8 ${
         darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
       }`}>
-        <div className="text-xl leading-relaxed font-mono tracking-wide">
-          {currentText.split('').map((char, index) => (
-            <span
-              key={index}
-              className={`${getCharacterStyle(index)} ${char === ' ' ? 'mx-0.5' : ''} transition-all duration-150 px-0.5 py-0.5 rounded`}
-            >
-              {char === ' ' ? '\u00A0' : char}
-            </span>
-          ))}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">
+            Paragraph {currentParagraphIndex + 1}: Study & Type
+          </h3>
+          <p className="text-sm text-gray-500">
+            Read the paragraph below, then type it out to practice while learning
+          </p>
+        </div>
+        
+        <div className="text-xl leading-relaxed font-mono tracking-wide p-6 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="break-words whitespace-pre-wrap">
+            {currentParagraph.split('').map((char, index) => (
+              <span
+                key={index}
+                className={`${getCharacterStyle(index)} transition-all duration-150 inline-block ${
+                  char === ' ' ? 'w-2' : 'px-0.5'
+                } py-0.5 rounded`}
+                style={{ 
+                  wordBreak: 'break-word',
+                  display: 'inline',
+                  maxWidth: '100%'
+                }}
+              >
+                {char === ' ' ? '\u00A0' : char}
+              </span>
+            ))}
+          </div>
+        </div>
+        
+        <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+          <span>
+            Progress: {currentIndex} / {currentParagraph.length} characters
+          </span>
+          <span>
+            {Math.round(progressPercentage)}% of current paragraph
+          </span>
         </div>
       </div>
 
-      {/* Input */}
+      {/* Input Area */}
       <div className={`rounded-2xl border p-6 ${
         darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
       }`}>
         <div className="mb-3">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {isComplete ? "Session completed!" : 
+            {isComplete ? "All paragraphs completed!" : 
              isPaused ? "Session paused - Press ESC to resume" :
              isActive ? "Keep typing..." :
-             "Start typing to begin"}
+             "Start typing to begin this paragraph"}
           </span>
         </div>
         <textarea
@@ -743,15 +993,20 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
           onChange={handleInputChange}
           disabled={isPaused || isComplete}
           placeholder={
-            isComplete ? "Great job! Check your results above." : 
+            isComplete ? "Great job! You've completed all paragraphs." : 
             isPaused ? "Session paused" :
-            "Start typing here..."
+            "Start typing the paragraph above..."
           }
-          className={`w-full h-32 p-4 rounded-xl resize-none font-mono text-lg border-0 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 ${
+          className={`w-full h-32 p-4 rounded-xl resize-none font-mono text-lg border-0 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 overflow-hidden break-words ${
             darkMode 
               ? 'bg-gray-800 text-gray-100 placeholder-gray-500' 
               : 'bg-gray-50 text-gray-900 placeholder-gray-400'
           } ${isPaused || isComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
+          style={{ 
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            whiteSpace: 'pre-wrap'
+          }}
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
@@ -770,10 +1025,10 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
                 {personalBest ? '🏆' : sessionStats.accuracy >= 95 ? '🎉' : sessionStats.accuracy >= 85 ? '👍' : '💪'}
               </div>
               <h3 className="text-2xl font-bold mb-2">
-                {personalBest ? 'New Personal Best!' : 'Session Complete!'}
+                {personalBest ? 'New Personal Best!' : 'All Paragraphs Complete!'}
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                {personalBest ? 'Congratulations on your new record!' : 'Great job on your typing practice!'}
+                {personalBest ? 'Congratulations on your new record!' : `You've successfully completed all ${paragraphs.length} paragraphs!`}
               </p>
               
               <div className="grid grid-cols-2 gap-4 mb-8">
@@ -803,10 +1058,10 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
                 
                 <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
                   <div className="flex items-center justify-center mb-2">
-                    <TrendingUp className="text-orange-600" size={24} />
+                    <FileText className="text-orange-600" size={24} />
                   </div>
-                  <div className="text-2xl font-bold text-orange-600">{sessionStats.charactersPerMinute || 0}</div>
-                  <div className="text-sm text-gray-500">Characters/min</div>
+                  <div className="text-2xl font-bold text-orange-600">{sessionStats.paragraphsCompleted || paragraphs.length}</div>
+                  <div className="text-sm text-gray-500">Paragraphs</div>
                 </div>
               </div>
 
@@ -833,20 +1088,29 @@ const PracticeScreen = ({ darkMode, setActiveTab, customText }) => {
         </div>
       )}
 
-      {/* Help */}
-      <div className="text-center text-sm text-gray-500 space-x-4">
-        <span>
-          Press <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">ESC</kbd> to pause
-        </span>
-        <span>
-          <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Ctrl+R</kbd> to restart
-        </span>
+      {/* Help & Instructions */}
+      <div className={`rounded-2xl border p-6 ${
+        darkMode ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-200'
+      }`}>
+        <h4 className="font-semibold mb-3">Paragraph Practice Instructions</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
+          <div>
+            <p className="mb-2">• <strong>Read first:</strong> Study each paragraph before typing</p>
+            <p className="mb-2">• <strong>Type accurately:</strong> Focus on precision over speed</p>
+            <p>• <strong>Learn actively:</strong> Comprehend the content as you type</p>
+          </div>
+          <div>
+            <p className="mb-2">• <strong>ESC:</strong> Pause/resume session</p>
+            <p className="mb-2">• <strong>Ctrl+R:</strong> Restart from beginning</p>
+            <p>• <strong>Auto-advance:</strong> Next paragraph when current is complete</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-// Stat Card Component
+// Enhanced Stat Card Component
 const StatCard = ({ darkMode, icon, label, value, valueColor = '' }) => (
   <div className={`rounded-2xl border p-6 transition-all duration-200 ${
     darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
@@ -861,7 +1125,7 @@ const StatCard = ({ darkMode, icon, label, value, valueColor = '' }) => (
   </div>
 );
 
-// Stats Screen Component
+// Stats Screen Component (unchanged from original)
 const StatsScreen = ({ darkMode, setActiveTab }) => {
   const [stats, setStats] = useState({
     averageWpm: 0,
