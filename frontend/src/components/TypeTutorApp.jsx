@@ -1,46 +1,229 @@
-// Updated TypeTutorApp.jsx with Beautiful Animations from react bits.dev
+// Updated TypeTutorApp.jsx with Beautiful Animations and Aurora Background
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp, ChevronLeft } from 'lucide-react';
 import { uploadPDF, processText, getStats, saveStats } from '../services/api';
 import DebuggingPanel from './DebuggingPanel';
 
-// Word Insertion Animation - Fixed spacing and width issues
-const RotatingText = ({ interval = 5000 }) => {
-  const [showHow, setShowHow] = useState(false);
+// Aurora Background Component
+const Aurora = (props) => {
+  const {
+    colorStops = ["#241593", "#3CCDD7", "#916BD6"],
+    amplitude = 1.8,
+    blend = 1.0,
+    speed = 2.5
+  } = props;
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
+  const ctnDom = useRef(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setShowHow(prev => !prev);
-    }, interval);
+    // Import Three.js dynamically since it's available in the environment
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    script.onload = () => {
+      const ctn = ctnDom.current;
+      if (!ctn || !window.THREE) return;
 
-    return () => clearInterval(timer);
-  }, [interval]);
+      // Simple Three.js implementation for aurora effect
+      const scene = new window.THREE.Scene();
+      const camera = new window.THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const renderer = new window.THREE.WebGLRenderer({ 
+        alpha: true, 
+        antialias: true,
+        premultipliedAlpha: true 
+      });
+      
+      renderer.setClearColor(0x000000, 0);
+      renderer.setSize(ctn.offsetWidth, ctn.offsetHeight);
+      ctn.appendChild(renderer.domElement);
 
+      // Simple aurora shader material
+      const material = new window.THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uResolution: { value: new window.THREE.Vector2(ctn.offsetWidth, ctn.offsetHeight) },
+          uAmplitude: { value: amplitude },
+          uBlend: { value: blend },
+          uSpeed: { value: speed }
+        },
+        vertexShader: `
+          void main() {
+            gl_Position = vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform vec2 uResolution;
+          uniform float uAmplitude;
+          uniform float uBlend;
+          uniform float uSpeed;
+          
+          float hash21(vec2 p) {
+            p = fract(p * vec2(123.34, 234.45));
+            p += dot(p, p + 34.45);
+            return fract(p.x * p.y);
+          }
+          
+          float noise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            
+            float a = hash21(i);
+            float b = hash21(i + vec2(1.0, 0.0));
+            float c = hash21(i + vec2(0.0, 1.0));
+            float d = hash21(i + vec2(1.0, 1.0));
+            
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+          }
+          
+          void main() {
+            vec2 uv = gl_FragCoord.xy / uResolution;
+            
+            // Your specified colors: #241593, #3CCDD7, #916BD6
+            vec3 color1 = vec3(0.141, 0.082, 0.576); // #241593 - Dark Blue
+            vec3 color2 = vec3(0.235, 0.804, 0.843); // #3CCDD7 - Cyan
+            vec3 color3 = vec3(0.569, 0.420, 0.839); // #916BD6 - Purple
+            
+            float time = uTime * uSpeed * 0.3; // Much slower movement
+            
+            // Stable flowing dividing line
+            float divideY = 0.5 + sin(uv.x * 2.0 + time * 0.5) * 0.1 + cos(uv.x * 4.0 - time * 0.3) * 0.05;
+            
+            // Determine section
+            bool upperSection = uv.y > divideY;
+            
+            vec3 finalColor = vec3(0.0);
+            float totalIntensity = 0.0;
+            
+            // STABLE UPPER SECTION
+            if (upperSection) {
+              // Create stable aurora bands
+              for (float i = 0.0; i < 3.0; i++) {
+                float bandY = 0.7 + i * 0.15 + sin(time * 0.4 + i * 2.0) * 0.05;
+                float bandThickness = 0.08 + sin(time * 0.6 + i * 1.5) * 0.02;
+                
+                // Smooth horizontal waves
+                float wave = sin(uv.x * 3.0 + time * 0.8 + i * 1.0) * 0.03;
+                wave += sin(uv.x * 5.0 - time * 0.6 + i * 2.0) * 0.02;
+                
+                float dist = abs(uv.y - bandY - wave);
+                float intensity = 1.0 - (dist / bandThickness);
+                intensity = max(0.0, intensity);
+                intensity = pow(intensity, 2.0);
+                
+                // Stable color mixing
+                vec3 bandColor = mix(color1, color2, sin(uv.x * 2.0 + time * 0.5 + i) * 0.5 + 0.5);
+                bandColor = mix(bandColor, color3, sin(uv.x * 1.5 - time * 0.3 + i * 0.5) * 0.3 + 0.3);
+                
+                // Gentle brightness variation
+                float brightness = 0.6 + 0.3 * sin(time * 0.7 + uv.x * 3.0 + i * 1.5);
+                
+                finalColor += bandColor * intensity * brightness;
+                totalIntensity = max(totalIntensity, intensity);
+              }
+            }
+            
+            // STABLE LOWER SECTION
+            else {
+              // Create stable aurora bands
+              for (float i = 0.0; i < 3.0; i++) {
+                float bandY = 0.1 + i * 0.12 + sin(time * 0.5 + i * 1.8) * 0.04;
+                float bandThickness = 0.07 + sin(time * 0.4 + i * 2.2) * 0.02;
+                
+                // Smooth horizontal waves
+                float wave = sin(uv.x * 2.5 + time * 0.7 + i * 1.3) * 0.03;
+                wave += sin(uv.x * 4.5 - time * 0.5 + i * 1.7) * 0.02;
+                
+                float dist = abs(uv.y - bandY - wave);
+                float intensity = 1.0 - (dist / bandThickness);
+                intensity = max(0.0, intensity);
+                intensity = pow(intensity, 2.0);
+                
+                // Stable color mixing
+                vec3 bandColor = mix(color2, color3, sin(uv.x * 1.8 + time * 0.4 + i) * 0.5 + 0.5);
+                bandColor = mix(bandColor, color1, sin(uv.x * 2.2 - time * 0.6 + i * 0.7) * 0.3 + 0.3);
+                
+                // Gentle brightness variation
+                float brightness = 0.6 + 0.3 * sin(time * 0.6 + uv.x * 2.5 + i * 1.2);
+                
+                finalColor += bandColor * intensity * brightness;
+                totalIntensity = max(totalIntensity, intensity);
+              }
+            }
+            
+            // Add subtle shimmer
+            float shimmer = noise(uv * 20.0 + time * 1.0) * 0.1;
+            finalColor += shimmer * color2 * totalIntensity;
+            
+            // Very gentle global brightness variation
+            float globalBrightness = 0.8 + 0.2 * sin(time * 0.3);
+            finalColor *= globalBrightness;
+            
+            totalIntensity *= uAmplitude;
+            float alpha = totalIntensity * 0.6 * uBlend;
+            
+            gl_FragColor = vec4(finalColor, alpha);
+          }
+        `,
+        transparent: true,
+        blending: window.THREE.AdditiveBlending
+      });
+
+      const geometry = new window.THREE.PlaneGeometry(2, 2);
+      const mesh = new window.THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+      let animationId;
+      const animate = (time) => {
+        animationId = requestAnimationFrame(animate);
+        material.uniforms.uTime.value = time * 0.001;
+        material.uniforms.uAmplitude.value = propsRef.current.amplitude ?? amplitude;
+        material.uniforms.uBlend.value = propsRef.current.blend ?? blend;
+        material.uniforms.uSpeed.value = propsRef.current.speed ?? speed;
+        renderer.render(scene, camera);
+      };
+      animate(0);
+
+      const handleResize = () => {
+        if (!ctn) return;
+        const width = ctn.offsetWidth;
+        const height = ctn.offsetHeight;
+        renderer.setSize(width, height);
+        material.uniforms.uResolution.value.set(width, height);
+      };
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        cancelAnimationFrame(animationId);
+        window.removeEventListener('resize', handleResize);
+        if (ctn && renderer.domElement.parentNode === ctn) {
+          ctn.removeChild(renderer.domElement);
+        }
+        renderer.dispose();
+        geometry.dispose();
+        material.dispose();
+      };
+    };
+    
+    document.head.appendChild(script);
+    
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, [amplitude, blend, speed]);
+
+  return <div ref={ctnDom} className="aurora-container" />;
+};
+
+// Word Text Component - No Animation, Just Gradient
+const StaticGradientText = () => {
   return (
-    <span className="word-insertion-container">
-      <span className="word-fixed">Learn</span>
-      <span className="space-char"> </span>
-      <span 
-        className="word-how"
-        style={{
-          maxWidth: showHow ? '6rem' : '0',
-          opacity: showHow ? 1 : 0,
-          overflow: 'hidden',
-          display: 'inline-block',
-          transition: 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          whiteSpace: 'nowrap',
-          verticalAlign: 'baseline'
-        }}
-      >
-        <span style={{ 
-          display: 'inline-block', 
-          paddingRight: '0.5rem',
-          minWidth: '3.5rem'
-        }}>
-          How
-        </span>
-      </span>
-      <span className="word-fixed">While You Type</span>
+    <span className="gradient-text-container text-5xl md:text-6xl">
+      Learn How While You Type
     </span>
   );
 };
@@ -59,10 +242,67 @@ const TypeTutorApp = () => {
   const [customText, setCustomText] = useState('');
   const [typingInProgress, setTypingInProgress] = useState(false);
 
-  // Add CSS styles for animations
+  // Add CSS styles for animations and aurora
   useEffect(() => {
     const styleElement = document.createElement('style');
     styleElement.textContent = `
+      .aurora-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.7;
+      }
+      
+      .aurora-container canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      
+      /* Hide scrollbar specifically for textareas */
+      textarea::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      
+      textarea {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      html, body, *, *::before, *::after {
+        scrollbar-width: thin !important;
+        scrollbar-color: ${darkMode ? '#374151 #1f2937' : '#9ca3af #f3f4f6'} !important;
+      }
+      
+      html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar {
+        width: 8px !important;
+        height: 8px !important;
+        background: ${darkMode ? '#1f2937' : '#f3f4f6'} !important;
+      }
+      
+      html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, *::-webkit-scrollbar-track {
+        background: ${darkMode ? '#1f2937' : '#f3f4f6'} !important;
+        border-radius: 4px !important;
+      }
+      
+      html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb {
+        background: ${darkMode ? '#374151' : '#9ca3af'} !important;
+        border-radius: 4px !important;
+        border: none !important;
+      }
+      
+      html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover, *::-webkit-scrollbar-thumb:hover {
+        background: ${darkMode ? '#4b5563' : '#6b7280'} !important;
+      }
+      
+      html::-webkit-scrollbar-corner, body::-webkit-scrollbar-corner, *::-webkit-scrollbar-corner {
+        background: ${darkMode ? '#1f2937' : '#f3f4f6'} !important;
+      }
+      
       .text-rotate {
         display: flex;
         flex-wrap: wrap;
@@ -173,6 +413,39 @@ const TypeTutorApp = () => {
       .text-rotating {
         opacity: 0;
         transform: translateY(-10px) scale(0.95);
+      }
+      
+      @keyframes fadeInScale {
+        0% {
+          opacity: 0;
+          transform: scale(0.8);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      
+      @keyframes slideInFromLeft {
+        0% {
+          opacity: 0;
+          transform: translateX(-10px) scale(0.8);
+        }
+        100% {
+          opacity: 1;
+          transform: translateX(0) scale(1);
+        }
+      }
+      
+      @keyframes slideOutToLeft {
+        0% {
+          opacity: 1;
+          transform: translateX(0) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-10px) scale(0.8);
+        }
       }
       
       @keyframes gradient {
@@ -318,8 +591,16 @@ const TypeTutorApp = () => {
 
   return (
     <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+      {/* Aurora Background */}
+      <Aurora 
+        colorStops={["#241593", "#3CCDD7", "#916BD6"]}
+        amplitude={1.8}
+        blend={1.0}
+        speed={2.5}
+      />
+      
       {/* Header */}
-      <header className={`px-6 py-4 flex justify-between items-center ${darkMode ? 'bg-gray-900' : 'bg-white'} border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+      <header className={`px-6 py-4 flex justify-between items-center ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'} border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'} relative z-10`}>
         <div className="flex items-center">
           <h1 className="text-xl font-bold">TypeTutor <span className="text-sm font-normal text-gray-500">Study Edition</span></h1>
         </div>
@@ -341,7 +622,7 @@ const TypeTutorApp = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl relative z-10">
         {activeTab === 'home' && (
           <HomeScreen 
             darkMode={darkMode} 
@@ -372,7 +653,7 @@ const TypeTutorApp = () => {
       </main>
 
       {/* Footer */}
-      <footer className={`py-4 px-6 text-center text-sm ${darkMode ? 'bg-gray-900 text-gray-400' : 'bg-white text-gray-500'} border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+      <footer className={`py-4 px-6 text-center text-sm ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm text-gray-400' : 'bg-white/80 backdrop-blur-sm text-gray-500'} border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'} relative z-10`}>
         TypeTutor Study Edition • Designed for maximum comfort and learning efficiency
         <span className="ml-2 text-xs opacity-50">Press Ctrl+Shift+D for debug mode</span>
       </footer>
@@ -457,10 +738,10 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
 
   return (
     <div className="space-y-8">
-      {/* Hero Section with Beautiful Animations */}
+      {/* Hero Section with Beautiful Gradient */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 gradient-text-container">
-          <RotatingText interval={5000} />
+        <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <StaticGradientText />
         </h1>
         <p className={`text-xl max-w-2xl mx-auto leading-relaxed shiny-text`}>
           Transform your typing practice into active learning. Study valuable content while building muscle memory and speed.
@@ -481,7 +762,7 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
         </div>
         
         <button 
-          className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'}`}
+          className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all duration-200 ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80 text-gray-200 border border-gray-700' : 'bg-white/80 backdrop-blur-sm hover:bg-gray-50/80 text-gray-700 border border-gray-200 shadow-sm'}`}
           onClick={() => setActiveTab('stats')}
         >
           <BarChart2 size={20} />
@@ -492,7 +773,7 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
         {/* Upload Section */}
-        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900 border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'}`}>
+        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800 hover:border-gray-700' : 'bg-white/80 backdrop-blur-sm border-gray-200 hover:border-gray-300 shadow-sm'}`}>
           <div className="mb-6">
             <h3 className="text-xl font-semibold mb-2 flex items-center">
               <Upload className="mr-3 text-purple-600" size={24} />
@@ -505,13 +786,13 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
           
           <div className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
             isLoading 
-              ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20' 
+              ? 'border-purple-400 bg-purple-50/50 dark:bg-purple-900/20' 
               : darkMode 
                 ? 'border-gray-700 hover:border-gray-600' 
                 : 'border-gray-300 hover:border-gray-400'
           }`}>
             {isLoading && (
-              <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 rounded-xl flex flex-col items-center justify-center">
+              <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm">
                 <div className="mb-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                 </div>
@@ -559,14 +840,14 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
           </div>
           
           {errorMessage && (
-            <div className={`mt-4 p-4 rounded-xl text-sm ${darkMode ? 'bg-red-900/50 text-red-200 border border-red-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            <div className={`mt-4 p-4 rounded-xl text-sm ${darkMode ? 'bg-red-900/50 backdrop-blur-sm text-red-200 border border-red-800' : 'bg-red-50/80 backdrop-blur-sm text-red-700 border border-red-200'}`}>
               {errorMessage}
             </div>
           )}
         </div>
 
         {/* Custom Text Section */}
-        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900 border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:border-gray-300 shadow-sm'}`}>
+        <div className={`rounded-2xl border p-8 transition-all duration-200 hover:shadow-lg ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800 hover:border-gray-700' : 'bg-white/80 backdrop-blur-sm border-gray-200 hover:border-gray-300 shadow-sm'}`}>
           <div className="mb-6">
             <h3 className="text-xl font-semibold mb-2 flex items-center">
               <FileText className="mr-3 text-blue-600" size={24} />
@@ -579,11 +860,12 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
           
           <div className="space-y-4">
             <textarea 
-              className={`w-full h-40 p-4 rounded-xl resize-none border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 ${
+              className={`w-full h-40 p-4 rounded-xl resize-none border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 overflow-hidden ${
                 darkMode 
-                  ? 'bg-gray-800 text-gray-200 border-gray-700 placeholder-gray-500' 
-                  : 'bg-gray-50 text-gray-800 border-gray-300 placeholder-gray-400'
+                  ? 'bg-gray-800/80 backdrop-blur-sm text-gray-200 border-gray-700 placeholder-gray-500' 
+                  : 'bg-gray-50/80 backdrop-blur-sm text-gray-800 border-gray-300 placeholder-gray-400'
               }`}
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               placeholder="Paste or type your practice text here...
 
 Try content like:
@@ -647,7 +929,7 @@ Try content like:
       </div>
 
       {/* Features Showcase */}
-      <div className={`rounded-2xl border p-8 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-gradient-to-br from-purple-50 to-blue-50 border-gray-200'}`}>
+      <div className={`rounded-2xl border p-8 ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-gradient-to-br from-purple-50/80 to-blue-50/80 backdrop-blur-sm border-gray-200'}`}>
         <h3 className="text-2xl font-bold text-center mb-8">Why Choose TypeTutor Study Edition?</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -684,15 +966,15 @@ const FeatureCard = ({ darkMode, icon, title, description, highlight = false }) 
     <div className={`text-center p-6 rounded-xl transition-all duration-200 hover:transform hover:scale-105 ${
       highlight 
         ? darkMode 
-          ? 'bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-purple-700' 
-          : 'bg-gradient-to-br from-purple-100 to-blue-100 border border-purple-200'
+          ? 'bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-purple-700 backdrop-blur-sm' 
+          : 'bg-gradient-to-br from-purple-100/80 to-blue-100/80 border border-purple-200 backdrop-blur-sm'
         : darkMode 
-          ? 'bg-gray-800/50' 
-          : 'bg-white/50'
+          ? 'bg-gray-800/50 backdrop-blur-sm' 
+          : 'bg-white/50 backdrop-blur-sm'
     }`}>
       <div className="flex justify-center mb-4">
         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
-          darkMode ? 'bg-gray-800' : 'bg-white'
+          darkMode ? 'bg-gray-800/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'
         } shadow-lg`}>
           {icon}
         </div>
@@ -1068,8 +1350,8 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
           onClick={() => setActiveTab('home')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 ${
             darkMode 
-              ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
-              : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
+              ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80 text-gray-200 border border-gray-700' 
+              : 'bg-white/80 backdrop-blur-sm hover:bg-gray-50/80 text-gray-700 border border-gray-200 shadow-sm'
           }`}
         >
           <ArrowLeft size={18} />
@@ -1083,9 +1365,9 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
             className={`p-3 rounded-xl transition-all duration-200 ${
               isActive && !isComplete
                 ? darkMode 
-                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
-                  : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
-                : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                  ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80 text-gray-200 border border-gray-700' 
+                  : 'bg-white/80 backdrop-blur-sm hover:bg-gray-50/80 text-gray-700 border border-gray-200 shadow-sm'
+                : 'opacity-50 cursor-not-allowed bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm'
             }`}
           >
             {isPaused ? <Play size={18} /> : <Pause size={18} />}
@@ -1095,8 +1377,8 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
             onClick={resetSession}
             className={`p-3 rounded-xl transition-all duration-200 ${
               darkMode 
-                ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
-                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
+                ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80 text-gray-200 border border-gray-700' 
+                : 'bg-white/80 backdrop-blur-sm hover:bg-gray-50/80 text-gray-700 border border-gray-200 shadow-sm'
             }`}
           >
             <RotateCcw size={18} />
@@ -1106,7 +1388,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
 
       {/* Paragraph Navigation */}
       <div className={`rounded-2xl border p-6 ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+        darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-white/80 backdrop-blur-sm border-gray-200 shadow-sm'
       }`}>
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Paragraph Progress</h3>
@@ -1202,7 +1484,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
 
       {/* Current Paragraph Display */}
       <div className={`rounded-2xl border p-8 ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+        darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-white/80 backdrop-blur-sm border-gray-200 shadow-sm'
       }`}>
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-2">
@@ -1213,7 +1495,9 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
           </p>
         </div>
         
-        <div className="text-xl leading-relaxed font-mono tracking-wide p-6 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className={`text-xl leading-relaxed font-mono tracking-wide p-6 rounded-xl border overflow-hidden ${
+          darkMode ? 'bg-gray-800/80 backdrop-blur-sm border-gray-700' : 'bg-gray-50/80 backdrop-blur-sm border-gray-200'
+        }`}>
           <div className="break-words whitespace-pre-wrap">
             {currentParagraph.split('').map((char, index) => (
               <span
@@ -1245,7 +1529,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
 
       {/* Input Area */}
       <div className={`rounded-2xl border p-6 ${
-        darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+        darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-white/80 backdrop-blur-sm border-gray-200 shadow-sm'
       }`}>
         <div className="mb-3">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1267,8 +1551,8 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
           }
           className={`w-full h-32 p-4 rounded-xl resize-none font-mono text-lg border-0 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 overflow-hidden break-words ${
             darkMode 
-              ? 'bg-gray-800 text-gray-100 placeholder-gray-500' 
-              : 'bg-gray-50 text-gray-900 placeholder-gray-400'
+              ? 'bg-gray-800/80 backdrop-blur-sm text-gray-100 placeholder-gray-500' 
+              : 'bg-gray-50/80 backdrop-blur-sm text-gray-900 placeholder-gray-400'
           } ${isPaused || isComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
           style={{ 
             wordWrap: 'break-word',
@@ -1286,7 +1570,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
       {showCompletion && sessionStats && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className={`rounded-2xl p-8 max-w-lg w-full ${
-            darkMode ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'
+            darkMode ? 'bg-gray-900/95 backdrop-blur-sm border border-gray-800' : 'bg-white/95 backdrop-blur-sm border border-gray-200'
           } shadow-2xl`}>
             <div className="text-center">
               <div className="text-6xl mb-4">
@@ -1300,7 +1584,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
               </p>
               
               <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm' : 'bg-gray-50/80 backdrop-blur-sm'}`}>
                   <div className="flex items-center justify-center mb-2">
                     <Zap className="text-purple-600" size={24} />
                   </div>
@@ -1308,7 +1592,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
                   <div className="text-sm text-gray-500">Words per minute</div>
                 </div>
                 
-                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm' : 'bg-gray-50/80 backdrop-blur-sm'}`}>
                   <div className="flex items-center justify-center mb-2">
                     <Target className="text-green-600" size={24} />
                   </div>
@@ -1316,7 +1600,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
                   <div className="text-sm text-gray-500">Accuracy</div>
                 </div>
                 
-                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm' : 'bg-gray-50/80 backdrop-blur-sm'}`}>
                   <div className="flex items-center justify-center mb-2">
                     <Clock className="text-blue-600" size={24} />
                   </div>
@@ -1324,7 +1608,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
                   <div className="text-sm text-gray-500">Time taken</div>
                 </div>
                 
-                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
+                <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm' : 'bg-gray-50/80 backdrop-blur-sm'}`}>
                   <div className="flex items-center justify-center mb-2">
                     <FileText className="text-orange-600" size={24} />
                   </div>
@@ -1344,8 +1628,8 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
                   onClick={() => setActiveTab('stats')}
                   className={`flex-1 px-6 py-3 rounded-xl transition-colors font-medium ${
                     darkMode 
-                      ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80 text-gray-200' 
+                      : 'bg-gray-100/80 backdrop-blur-sm hover:bg-gray-200/80 text-gray-700'
                   }`}
                 >
                   View All Stats
@@ -1358,7 +1642,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
 
       {/* Help & Instructions */}
       <div className={`rounded-2xl border p-6 ${
-        darkMode ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-50 border-gray-200'
+        darkMode ? 'bg-gray-900/50 backdrop-blur-sm border-gray-800' : 'bg-gray-50/80 backdrop-blur-sm border-gray-200'
       }`}>
         <h4 className="font-semibold mb-3">Paragraph Practice Instructions</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
@@ -1381,7 +1665,7 @@ Regular practice sessions, even just 10-15 minutes a day, will lead to significa
 // Enhanced Stat Card Component
 const StatCard = ({ darkMode, icon, label, value, valueColor = '' }) => (
   <div className={`rounded-2xl border p-6 transition-all duration-200 ${
-    darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+    darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-white/80 backdrop-blur-sm border-gray-200 shadow-sm'
   }`}>
     <div className="flex items-center justify-between mb-3">
       <div className="text-gray-500">
@@ -1393,7 +1677,7 @@ const StatCard = ({ darkMode, icon, label, value, valueColor = '' }) => (
   </div>
 );
 
-// Stats Screen Component (unchanged from original)
+// Stats Screen Component
 const StatsScreen = ({ darkMode, setActiveTab }) => {
   const [stats, setStats] = useState({
     averageWpm: 0,
@@ -1438,7 +1722,7 @@ const StatsScreen = ({ darkMode, setActiveTab }) => {
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-bold">Performance Statistics</h2>
         <button 
-          className={`px-4 py-2 rounded-md transition-colors ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+          className={`px-4 py-2 rounded-md transition-colors ${darkMode ? 'bg-gray-800/80 backdrop-blur-sm hover:bg-gray-700/80' : 'bg-gray-100/80 backdrop-blur-sm hover:bg-gray-200/80'}`}
           onClick={() => setActiveTab('home')}
         >
           Back to Home
@@ -1450,7 +1734,7 @@ const StatsScreen = ({ darkMode, setActiveTab }) => {
       </p>
       
       {error && (
-        <div className={`p-4 mb-6 rounded-md ${darkMode ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800'}`}>
+        <div className={`p-4 mb-6 rounded-md ${darkMode ? 'bg-red-900/50 backdrop-blur-sm text-red-100' : 'bg-red-100/80 backdrop-blur-sm text-red-800'}`}>
           {error}
         </div>
       )}
@@ -1491,7 +1775,7 @@ const StatsScreen = ({ darkMode, setActiveTab }) => {
           </div>
           
           {/* Recent Sessions */}
-          <div className={`rounded-lg border ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} p-6`}>
+          <div className={`rounded-lg border ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm border-gray-800' : 'bg-white/80 backdrop-blur-sm border-gray-200'} p-6`}>
             <h3 className="font-semibold text-lg mb-4">Recent Sessions</h3>
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>Your last 5 typing practice sessions</p>
             
