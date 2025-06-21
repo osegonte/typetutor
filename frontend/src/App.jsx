@@ -1,8 +1,19 @@
-// frontend/src/App.jsx - Enhanced with error catching
+// frontend/src/App.jsx - CORRECTED VERSION
+console.log("🟢 App.jsx loading - React confirmed working");
+
 import React from 'react';
+
+console.log("🟢 React imported successfully");
+
+// Test TypeTutorApp import
+console.log("🔵 About to import TypeTutorApp...");
+
+// Simple import with error boundary to catch issues
 import TypeTutorApp from './components/TypeTutorApp';
 
-// Simple error boundary component
+console.log("✅ TypeTutorApp imported successfully!");
+
+// Error boundary for runtime errors
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -10,53 +21,66 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
+    console.error("❌ RUNTIME ERROR caught:", error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('React Error Boundary caught an error:');
-    console.error('Error:', error);
-    console.error('Error Info:', errorInfo);
+    console.error('🚨 Full error details:', error);
+    console.error('🚨 Component stack:', errorInfo.componentStack);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          padding: '20px',
+        <div style={{ 
+          padding: '20px', 
+          backgroundColor: '#ffebee', 
+          border: '3px solid red',
           margin: '20px',
-          border: '2px solid red',
-          borderRadius: '8px',
-          backgroundColor: '#fee',
-          fontFamily: 'Arial, sans-serif'
+          borderRadius: '10px',
+          fontFamily: 'Arial'
         }}>
-          <h2 style={{ color: 'red', marginBottom: '10px' }}>
-            🚨 Something went wrong with TypeTutor
-          </h2>
-          <details style={{ marginBottom: '15px' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>
-              Error Details (click to expand)
-            </summary>
-            <pre style={{ 
-              backgroundColor: '#f5f5f5', 
-              padding: '10px', 
-              borderRadius: '4px',
-              overflow: 'auto',
-              fontSize: '12px'
-            }}>
-              {this.state.error?.toString()}
+          <h1 style={{ color: 'red' }}>🚨 Found the TypeTutorApp Error!</h1>
+          <h2 style={{ color: '#d32f2f' }}>Error: {this.state.error?.message}</h2>
+          
+          <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '5px', marginTop: '15px' }}>
+            <strong>This is exactly what's wrong:</strong>
+            <pre style={{ fontSize: '12px', marginTop: '10px', overflow: 'auto', maxHeight: '300px' }}>
               {this.state.error?.stack}
             </pre>
-          </details>
+          </div>
+          
+          <button 
+            onClick={() => {
+              const errorText = `TypeTutor Error:\n${this.state.error?.message}\n\nStack:\n${this.state.error?.stack}`;
+              navigator.clipboard.writeText(errorText);
+              alert('Error details copied to clipboard!');
+            }}
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: '#1976d2', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '5px', 
+              cursor: 'pointer',
+              marginTop: '15px',
+              marginRight: '10px'
+            }}
+          >
+            📋 Copy Error Details
+          </button>
+          
           <button 
             onClick={() => window.location.reload()}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: '#007cba',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: '#388e3c', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '5px', 
+              cursor: 'pointer',
+              marginTop: '15px'
             }}
           >
             🔄 Reload Page
@@ -70,27 +94,27 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  console.log("✅ App.jsx loaded and rendering");
+  console.log("🟢 App function called - about to render TypeTutorApp");
   
-  // Check if root element exists
-  const rootElement = document.getElementById('root');
-  if (!rootElement) {
-    console.error("❌ Root element #root not found in HTML!");
-  }
-
-  // Environment check
-  console.log("🔧 Environment:", {
-    NODE_ENV: process.env.NODE_ENV,
-    VITE_API_URL: import.meta.env.VITE_API_URL,
-    isDevelopment: import.meta.env.DEV,
-    isProduction: import.meta.env.PROD
-  });
-
   return (
-    <ErrorBoundary>
-      <TypeTutorApp />
-    </ErrorBoundary>
+    <div>
+      <div style={{ 
+        padding: '10px', 
+        backgroundColor: 'lightgreen', 
+        textAlign: 'center',
+        fontFamily: 'Arial',
+        fontSize: '14px'
+      }}>
+        ✅ React Working | ✅ Import Successful | Testing TypeTutorApp Render...
+      </div>
+      
+      <ErrorBoundary>
+        <TypeTutorApp />
+      </ErrorBoundary>
+    </div>
   );
 }
+
+console.log("🟢 About to export App");
 
 export default App;
