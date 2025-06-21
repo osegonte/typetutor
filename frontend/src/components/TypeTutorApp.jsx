@@ -1,8 +1,49 @@
-// Updated TypeTutorApp.jsx with Paragraph-based Text Display and Original Homepage Design
+// Updated TypeTutorApp.jsx with Beautiful Animations from react bits.dev
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp, ChevronLeft } from 'lucide-react';
 import { uploadPDF, processText, getStats, saveStats } from '../services/api';
 import DebuggingPanel from './DebuggingPanel';
+
+// Word Insertion Animation - Fixed spacing and width issues
+const RotatingText = ({ interval = 5000 }) => {
+  const [showHow, setShowHow] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setShowHow(prev => !prev);
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [interval]);
+
+  return (
+    <span className="word-insertion-container">
+      <span className="word-fixed">Learn</span>
+      <span className="space-char"> </span>
+      <span 
+        className="word-how"
+        style={{
+          maxWidth: showHow ? '6rem' : '0',
+          opacity: showHow ? 1 : 0,
+          overflow: 'hidden',
+          display: 'inline-block',
+          transition: 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          whiteSpace: 'nowrap',
+          verticalAlign: 'baseline'
+        }}
+      >
+        <span style={{ 
+          display: 'inline-block', 
+          paddingRight: '0.5rem',
+          minWidth: '3.5rem'
+        }}>
+          How
+        </span>
+      </span>
+      <span className="word-fixed">While You Type</span>
+    </span>
+  );
+};
 
 const TypeTutorApp = () => {
   // App state
@@ -17,6 +58,231 @@ const TypeTutorApp = () => {
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [customText, setCustomText] = useState('');
   const [typingInProgress, setTypingInProgress] = useState(false);
+
+  // Add CSS styles for animations
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .text-rotate {
+        display: flex;
+        flex-wrap: wrap;
+        white-space: pre-wrap;
+        position: relative;
+      }
+      .text-rotate-sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .text-rotate-word {
+        display: inline-flex;
+      }
+      .text-rotate-lines {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+      }
+      .gradient-text-container {
+        background: ${darkMode 
+          ? 'linear-gradient(-45deg, #8B5CF6, #3B82F6, #06B6D4, #8B5CF6)'
+          : 'linear-gradient(-45deg, #8B5CF6, #3B82F6, #06B6D4, #8B5CF6)'};
+        background-size: 300% 100%;
+        animation: gradient 8s linear infinite;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      
+      .word-insertion-container {
+        display: inline-block;
+        white-space: nowrap;
+      }
+      
+      .word-fixed, .word-how {
+        display: inline-block;
+        color: inherit;
+        background: inherit;
+        -webkit-background-clip: inherit;
+        background-clip: inherit;
+      }
+      
+      .word-how {
+        transform-origin: left center;
+        vertical-align: baseline;
+      }
+      
+      .text-word-how.show {
+        animation: slideInExpand 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      
+      .text-word-how.hide {
+        animation: slideOutCollapse 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      
+      @keyframes slideInExpand {
+        0% {
+          opacity: 0;
+          width: 0;
+          margin-left: 0;
+          margin-right: 0;
+          transform: scale(0.8);
+        }
+        50% {
+          opacity: 0.5;
+          transform: scale(0.9);
+        }
+        100% {
+          opacity: 1;
+          width: auto;
+          margin-left: 0.25rem;
+          margin-right: 0.25rem;
+          transform: scale(1);
+        }
+      }
+      
+      @keyframes slideOutCollapse {
+        0% {
+          opacity: 1;
+          width: auto;
+          margin-left: 0.25rem;
+          margin-right: 0.25rem;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.5;
+          transform: scale(0.9);
+        }
+        100% {
+          opacity: 0;
+          width: 0;
+          margin-left: 0;
+          margin-right: 0;
+          transform: scale(0.8);
+        }
+      }
+      .text-rotate-space {
+        white-space: pre;
+      }
+      
+      .text-rotating {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+      }
+      
+      @keyframes gradient {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+      
+      .text-content {
+        background-size: 300% 100%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        animation: gradient 8s linear infinite;
+      }
+      
+      .shiny-text {
+        color: ${darkMode ? '#b5b5b5a4' : '#6b7280'};
+        background: linear-gradient(
+          120deg,
+          rgba(255, 255, 255, 0) 40%,
+          rgba(255, 255, 255, 0.8) 50%,
+          rgba(255, 255, 255, 0) 60%
+        );
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        display: inline-block;
+        animation: shine 5s linear infinite;
+      }
+      
+      @keyframes shine {
+        0% {
+          background-position: 100%;
+        }
+        100% {
+          background-position: -100%;
+        }
+      }
+      
+      .shiny-text.disabled {
+        animation: none;
+      }
+      
+      /* Make all grey text elements shiny */
+      .text-gray-500, .text-gray-400, .text-gray-600 {
+        color: ${darkMode ? '#b5b5b5a4' : '#6b7280'};
+        background: linear-gradient(
+          120deg,
+          rgba(255, 255, 255, 0) 40%,
+          rgba(255, 255, 255, 0.8) 50%,
+          rgba(255, 255, 255, 0) 60%
+        );
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        display: inline-block;
+        animation: shine 5s linear infinite;
+      }
+      
+      /* Dark mode grey text shiny effect */
+      .dark .text-gray-500, .dark .text-gray-400, .dark .text-gray-600 {
+        color: #b5b5b5a4;
+        background: linear-gradient(
+          120deg,
+          rgba(255, 255, 255, 0) 40%,
+          rgba(255, 255, 255, 0.6) 50%,
+          rgba(255, 255, 255, 0) 60%
+        );
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        display: inline-block;
+        animation: shine 5s linear infinite;
+      }
+      
+      /* Enhanced button hover effects */
+      .transition-all {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Smooth hover animations for cards */
+      .hover\\:scale-105:hover {
+        transform: scale(1.05);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Enhanced shadow transitions */
+      .hover\\:shadow-lg:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Smooth border color transitions */
+      .hover\\:border-gray-600:hover, .hover\\:border-gray-400:hover {
+        transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+    `;
+    document.head.appendChild(styleElement);
+
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, [darkMode]); // Re-run when dark mode changes
   
   // Save dark mode preference
   useEffect(() => {
@@ -114,7 +380,7 @@ const TypeTutorApp = () => {
   );
 };
 
-// ORIGINAL HOMEPAGE DESIGN - Restored
+// UPDATED HOMEPAGE DESIGN - With Beautiful Animations
 const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingInProgress, setTypingInProgress }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -191,12 +457,12 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
+      {/* Hero Section with Beautiful Animations */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-          Learn While You Type
+        <h1 className="text-4xl md:text-5xl font-bold mb-4 gradient-text-container">
+          <RotatingText interval={5000} />
         </h1>
-        <p className={`text-xl ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto leading-relaxed`}>
+        <p className={`text-xl max-w-2xl mx-auto leading-relaxed shiny-text`}>
           Transform your typing practice into active learning. Study valuable content while building muscle memory and speed.
         </p>
       </div>
@@ -277,17 +543,19 @@ const HomeScreen = ({ darkMode, setActiveTab, customText, setCustomText, typingI
               onChange={handleFileUpload}
               disabled={isLoading}
             />
-            <button 
-              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                isLoading 
-                  ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed' 
-                  : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg'
-              }`}
-              onClick={() => document.getElementById('file-upload')?.click()}
-              disabled={isLoading}
-            >
-              Choose File
-            </button>
+            <div className="flex justify-center">
+              <button 
+                className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                  isLoading 
+                    ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed' 
+                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg'
+                }`}
+                onClick={() => document.getElementById('file-upload')?.click()}
+                disabled={isLoading}
+              >
+                Choose File
+              </button>
+            </div>
           </div>
           
           {errorMessage && (
