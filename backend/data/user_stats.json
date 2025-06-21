@@ -1,0 +1,48 @@
+{
+  "averageWpm": 232,
+  "accuracy": 70,
+  "practiceMinutes": 3,
+  "currentStreak": 1,
+  "totalSessions": 2,
+  "lastSessionDate": "2025-06-21",
+  "recentSessions": [
+    {
+      "date": "2025-06-21",
+      "duration": "1m 35s",
+      "wpm": 165,
+      "accuracy": 56,
+      "mode": "Custom Text",
+      "difficulty": "medium",
+      "word_count": 0,
+      "raw_duration": 95.0,
+      "timestamp": "2025-06-21T16:06:19.521611"
+    },
+    {
+      "date": "2025-06-21",
+      "duration": "0m 54s",
+      "wpm": 300,
+      "accuracy": 83,
+      "mode": "Custom Text",
+      "difficulty": "medium",
+      "word_count": 0,
+      "raw_duration": 54.0,
+      "timestamp": "2025-06-21T15:58:55.147482"
+    }
+  ],
+  "personalBest": {
+    "wpm": 300,
+    "accuracy": 83,
+    "date": "2025-06-21"
+  },
+  "weeklyStats": [
+    {
+      "week_start": "2025-06-16",
+      "sessions": 2,
+      "total_time": 149.0,
+      "best_wpm": 300,
+      "best_accuracy": 83,
+      "total_words": 0
+    }
+  ],
+  "createdAt": "2025-06-21T15:58:55.146472"
+}
