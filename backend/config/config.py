@@ -2,6 +2,14 @@
 import os
 from decouple import config
 
+# Load .env file explicitly
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✅ Loaded environment variables from .env file")
+except ImportError:
+    print("⚠️ python-dotenv not available, using system environment")
+
 class Config:
     SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-in-production')
     

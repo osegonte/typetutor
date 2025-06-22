@@ -37,3 +37,20 @@ test_stats.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Cleanup - prevent future clutter
+*.backup*
+*.bak
+backend_*.log
+frontend.log
+test_*.py
+fix_*.py
+*_test.sh
+complete_setup.sh
+schema_setup_guide.sh
+setup_environment.sh
+
+# Keep essential files
+!backend/app.py
+!scripts/migrate_to_supabase.py
+!scripts/database_schema.sql
