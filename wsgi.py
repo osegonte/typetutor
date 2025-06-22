@@ -7,35 +7,51 @@ Railway Production Deployment
 import os
 import sys
 
-# Add the current directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the current directory and backend directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+sys.path.insert(0, os.path.join(current_dir, 'backend'))
 
-# Try multiple import patterns to find the Flask app
+# Import the Flask app
 try:
-    # First try: import from backend/app.py (correct path)
-    from backend.app import create_app
+    # Import from the main app.py in root directory
+    from app import create_app
     app = create_app()
-except ImportError:
+    print("✅ Successfully imported app from root app.py")
+except ImportError as e:
+    print(f"⚠️ Could not import from root app.py: {e}")
     try:
-        # Second try: import from app.py in root
-        from app import create_app
+        # Try importing from backend/app.py
+        from backend.app import create_app
         app = create_app()
-    except ImportError:
-        # Third try: import the app instance directly
-        try:
-            from app import app
-        except ImportError:
-            try:
-                from backend.app import app
-            except ImportError:
-                # Last resort: create a simple Flask app
-                from flask import Flask
-                app = Flask(__name__)
-                
-                @app.route('/api/health')
-                def health():
-                    return {'status': 'healthy', 'message': 'WSGI fallback app'}
+        print("✅ Successfully imported app from backend/app.py")
+    except ImportError as e:
+        print(f"❌ Could not import from backend/app.py: {e}")
+        # Create a minimal fallback app
+        from flask import Flask, jsonify
+        app = Flask(__name__)
+        
+        @app.route('/api/health')
+        def health():
+            return jsonify({
+                'status': 'error',
+                'message': 'WSGI fallback app - main app could not be imported',
+                'error': str(e)
+            })
+        
+        print("⚠️ Using fallback Flask app")
 
-# Ensure we have a WSGI-compatible application
+# Configure for production
+if hasattr(app, 'config'):
+    app.config['DEBUG'] = False
+    app.config['TESTING'] = False
+    
+    # Set required config from environment
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-secret-key')
+    app.config['SUPABASE_URL'] = os.environ.get('SUPABASE_URL', '')
+    app.config['SUPABASE_ANON_KEY'] = os.environ.get('SUPABASE_ANON_KEY', '')
+    app.config['USE_DATABASE'] = os.environ.get('USE_DATABASE', 'true').lower() == 'true'
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False)
