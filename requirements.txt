@@ -1,5 +1,16 @@
+# TypeTutor Backend - Production Requirements
 Flask==3.0.0
 Flask-Cors==4.0.0
 gunicorn==21.2.0
 python-dotenv==1.0.0
 requests==2.31.0
+
+# Database (Supabase)
+supabase==2.3.4
+psycopg2-binary==2.9.9
+
+# PDF Processing
+pypdf==4.0.1
+
+# System utilities
+psutil==5.9.8

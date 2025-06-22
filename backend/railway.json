@@ -1,9 +1,8 @@
-# railway.json
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt"
+    "buildCommand": "pip install --no-cache-dir -r requirements.txt"
   },
   "deploy": {
     "startCommand": "gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 120 --access-logfile - --error-logfile - 'backend.app:create_app()'",
@@ -11,13 +10,5 @@
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
-  },
-  "environments": {
-    "production": {
-      "variables": {
-        "FLASK_ENV": "production",
-        "USE_DATABASE": "true"
-      }
-    }
   }
 }
