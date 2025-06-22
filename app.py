@@ -1,10 +1,20 @@
+"""
+TypeTutor Flask Application - Railway Production
+Simple root-level app.py for Railway deployment
+"""
+
 import os
 import sys
-from flask import Flask, send_from_directory, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+import tempfile
+import uuid
+
+# Add backend to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 
 def create_app():
-    """Enhanced Flask app with full TypeTutor functionality"""
+    """Create Flask application"""
     app = Flask(__name__, static_folder='frontend/dist')
     
     # Configuration
@@ -13,13 +23,18 @@ def create_app():
         'DEBUG': False,
         'SUPABASE_URL': os.environ.get('SUPABASE_URL', ''),
         'SUPABASE_ANON_KEY': os.environ.get('SUPABASE_ANON_KEY', ''),
-        'USE_DATABASE': os.environ.get('USE_DATABASE', 'true').lower() == 'true'
+        'USE_DATABASE': os.environ.get('USE_DATABASE', 'true').lower() == 'true',
+        'MAX_CONTENT_LENGTH': 16 * 1024 * 1024
     })
     
-    # Enable CORS for all origins
+    # Enable CORS
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     
-    # Enhanced routes
+    # Create upload directory
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    app.config['UPLOAD_FOLDER'] = upload_dir
+    
     @app.route('/api/health')
     def health():
         return jsonify({
@@ -27,13 +42,13 @@ def create_app():
             'message': 'TypeTutor backend running on Railway',
             'database_enabled': app.config.get('USE_DATABASE', False),
             'supabase_configured': bool(app.config.get('SUPABASE_URL')),
-            'version': '2.0.0'
+            'version': '2.0.0',
+            'deployment': 'railway-simple'
         })
     
     @app.route('/api/stats')
     def get_stats():
         """Get user statistics"""
-        # For now, return mock data - can be enhanced with database later
         return jsonify({
             'averageWpm': 45,
             'accuracy': 92,
@@ -47,13 +62,6 @@ def create_app():
                     'wpm': 48,
                     'accuracy': 94,
                     'mode': 'Practice'
-                },
-                {
-                    'date': '2025-06-21',
-                    'duration': '3m 15s',
-                    'wpm': 42,
-                    'accuracy': 89,
-                    'mode': 'Custom Text'
                 }
             ],
             'personalBest': {
@@ -68,7 +76,6 @@ def create_app():
         """Save typing session statistics"""
         data = request.get_json()
         
-        # Basic validation
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
@@ -77,7 +84,6 @@ def create_app():
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # For now, just return success - can be enhanced with database later
         return jsonify({
             'success': True,
             'message': 'Statistics saved successfully',
@@ -117,7 +123,6 @@ def create_app():
         if not text:
             return jsonify({'error': 'Empty text provided'}), 400
         
-        # Create study item
         items = [{
             'id': 'custom-text-1',
             'prompt': 'Type this custom text:',
@@ -137,19 +142,30 @@ def create_app():
     @app.route('/api/pdf-support')
     def pdf_support():
         """Get PDF support information"""
-        return jsonify({
-            'pdf_support': True,
-            'message': 'PDF processing available',
-            'supported_formats': ['pdf'],
-            'max_file_size': '16MB'
-        })
+        try:
+            import pypdf
+            return jsonify({
+                'pdf_support': True,
+                'pypdf_available': True,
+                'message': 'PDF processing available',
+                'supported_formats': ['pdf'],
+                'max_file_size': '16MB'
+            })
+        except ImportError:
+            return jsonify({
+                'pdf_support': False,
+                'pypdf_available': False,
+                'message': 'PDF processing not available',
+                'supported_formats': [],
+                'max_file_size': '0MB'
+            })
     
     @app.route('/api/upload-pdf', methods=['POST'])
     def upload_pdf():
-        """Handle PDF upload (placeholder for now)"""
+        """Handle PDF upload"""
         return jsonify({
             'success': False,
-            'message': 'PDF upload feature coming soon',
+            'message': 'PDF upload feature coming soon in Railway deployment',
             'alternative': 'Please use the text input feature for now'
         })
     
@@ -178,7 +194,9 @@ def create_app():
     
     return app
 
+# Create app instance
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    port = int(os.environ.get('PORT', 8000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
