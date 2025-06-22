@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "name": "typetutor-frontend",
+  "builds": [
+    {
+      "src": "dist/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/dist/$1"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://typetutor-production.up.railway.app/api"
+  }
+}
