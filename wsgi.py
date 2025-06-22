@@ -12,13 +12,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Try multiple import patterns to find the Flask app
 try:
-    # First try: import from app.py in root
-    from app import create_app
+    # First try: import from backend/app.py (correct path)
+    from backend.app import create_app
     app = create_app()
 except ImportError:
     try:
-        # Second try: import from backend/app.py
-        from backend.app import create_app
+        # Second try: import from app.py in root
+        from app import create_app
         app = create_app()
     except ImportError:
         # Third try: import the app instance directly
