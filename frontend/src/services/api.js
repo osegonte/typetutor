@@ -10,7 +10,14 @@ const getApiClient = () => {
     // Using fetch instead of axios for better CORS handling
     apiClient = {
       async get(endpoint) {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          mode: 'cors',
+          credentials: 'omit'
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return { data: await response.json() };
       },
@@ -21,6 +28,8 @@ const getApiClient = () => {
           method: 'POST',
           headers: isFormData ? {} : { 'Content-Type': 'application/json' },
           body: isFormData ? data : JSON.stringify(data),
+          mode: 'cors',
+          credentials: 'omit',
           ...config
         });
         
@@ -107,31 +116,16 @@ export const resetStats = async (newStats = null) => {
 
 export const checkHealth = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit'
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } catch (error) {
     console.error('Health check failed:', error);
     throw error;
-  }
-};
-
-export const testConnection = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/health`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    return await response.json();
-  } catch (error) {
-    throw new Error(`Cannot connect to backend: ${error.message}`);
-  }
-};
-
-export const isBackendAvailable = async () => {
-  try {
-    await testConnection();
-    return true;
-  } catch (error) {
-    return false;
   }
 };
 
@@ -141,9 +135,7 @@ const api = {
   getStats,
   saveStats,
   resetStats,
-  checkHealth,
-  testConnection,
-  isBackendAvailable
+  checkHealth
 };
 
 export default api;
