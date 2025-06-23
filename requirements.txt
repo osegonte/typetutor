@@ -1,5 +1,17 @@
+# Core Flask dependencies
 Flask==3.0.0
 Flask-Cors==4.0.0
 gunicorn==21.2.0
-psutil==5.9.8
+
+# PDF processing
 pypdf==4.0.1
+
+# System monitoring (optional - comment out if installation fails)
+psutil==5.9.8
+
+# Development dependencies
+python-dotenv==1.0.0
+
+# Optional: Database support (only enable if using Supabase)
+# supabase==2.0.0
+# psycopg2-binary==2.9.9
