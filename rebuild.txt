@@ -1,2 +1,0 @@
-# Force rebuild Sun Jun 22 21:08:02 CEST 2025
-# CORS fix - Tue Jun 24 21:04:37 CEST 2025
