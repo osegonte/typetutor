@@ -1,10 +1,21 @@
 {
   "averageWpm": 64,
   "accuracy": 96,
-  "practiceMinutes": 21,
+  "practiceMinutes": 23,
   "currentStreak": 1,
-  "totalSessions": 8,
+  "totalSessions": 9,
   "recentSessions": [
+    {
+      "date": "2025-06-24",
+      "duration": "2m 0s",
+      "wpm": 65,
+      "accuracy": 95,
+      "mode": "Practice",
+      "difficulty": "medium",
+      "word_count": 0,
+      "raw_duration": 120.0,
+      "timestamp": "2025-06-24T19:10:42.032751"
+    },
     {
       "date": "2025-06-24",
       "duration": "2m 30s",
