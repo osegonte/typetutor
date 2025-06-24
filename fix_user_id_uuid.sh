@@ -1,3 +1,25 @@
+#!/bin/bash
+# fix_user_id_uuid.sh - Fix UUID user_id issue
+
+echo "🔧 Fixing User ID UUID Issue"
+echo "============================="
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+print_status() { echo -e "${BLUE}[INFO]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+
+print_status "Backing up database service..."
+cp backend/services/simple_database_service.py backend/services/simple_database_service.py.uuid-backup
+
+print_status "Creating user management system with UUID support..."
+
+cat > backend/services/simple_database_service.py << 'EOF'
 # backend/services/simple_database_service.py (WITH UUID USER MANAGEMENT)
 import os
 import requests
@@ -198,3 +220,21 @@ class SimpleSupabaseService:
 
 def get_simple_supabase_service():
     return SimpleSupabaseService()
+EOF
+
+print_success "Database service updated with UUID user management"
+
+echo ""
+print_success "✅ UUID User Management Fix Applied!"
+echo ""
+echo "Changes made:"
+echo "• Added _get_or_create_user() method"
+echo "• Automatically creates users with proper UUIDs"
+echo "• Looks up existing users by username"
+echo "• Fallback UUID generation for errors"
+echo "• Enhanced logging and error handling"
+echo ""
+echo "Now restart your backend and test:"
+echo "1. Press Ctrl+C in the backend terminal"
+echo "2. Run: python app.py"
+echo "3. Test with the same curl command - it should now work!"

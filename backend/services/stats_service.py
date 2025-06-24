@@ -143,7 +143,7 @@ class StatsService:
             
             # Update personal bests
             if wpm > stats['personalBest']['wpm']:
-                stats['personalBest']['wpm'] = wmp
+                stats['personalBest']['wpm'] = wpm
                 stats['personalBest']['date'] = session_record['date']
             
             if accuracy > stats['personalBest']['accuracy']:

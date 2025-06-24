@@ -156,7 +156,7 @@ class DatabaseService:
                 'total_practice_time_minutes': practice_minutes,
                 'average_wpm': round(new_avg_wpm, 2),
                 'average_accuracy': round(new_avg_accuracy, 2),
-                'best_wpm': max(current_stats['best_wpm'], session_data['wmp']),
+                'best_wpm': max(current_stats['best_wpm'], session_data['wpm']),
                 'best_accuracy': max(current_stats['best_accuracy'], session_data['accuracy']),
                 'current_streak': current_streak,
                 'longest_streak': max(current_stats['longest_streak'], current_streak),
@@ -204,7 +204,7 @@ class DatabaseService:
                 recent_sessions.append({
                     'date': session['created_at'][:10],
                     'duration': f"{minutes}m {seconds}s",
-                    'wpm': session['wmp'],
+                    'wpm': session['wpm'],
                     'accuracy': session['accuracy'],
                     'mode': session['content_type'].title()
                 })

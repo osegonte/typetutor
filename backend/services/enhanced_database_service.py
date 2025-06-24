@@ -88,7 +88,7 @@ class SupabaseService:
             return {
                 'averageWpm': 0, 'accuracy': 0, 'practiceMinutes': 0,
                 'currentStreak': 0, 'totalSessions': 0, 'recentSessions': [],
-                'personalBest': {'wmp': 0, 'accuracy': 0, 'date': None}
+                'personalBest': {'wpm': 0, 'accuracy': 0, 'date': None}
             }
     
     async def save_typing_session(self, session_data: Dict) -> Dict:
@@ -97,7 +97,7 @@ class SupabaseService:
                 'user_id': session_data['user_id'],
                 'session_type': session_data.get('session_type', 'practice'),
                 'content_source': session_data.get('content_source', 'custom'),
-                'wmp': float(session_data['wmp']),
+                'wpm': float(session_data['wpm']),
                 'accuracy': float(session_data['accuracy']),
                 'duration_seconds': int(session_data['duration_seconds']),
                 'characters_typed': session_data.get('characters_typed', 0),
