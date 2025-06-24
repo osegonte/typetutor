@@ -12,10 +12,6 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from services.enhanced_database_service import get_supabase_service
-from utils.validators import validate_session_data, validate_goal_data, validate_user_data
-from utils.decorators import handle_errors, rate_limit
-
 logger = logging.getLogger(__name__)
 
 # Create blueprint
@@ -37,10 +33,21 @@ def require_user_id(f):
     """Decorator to ensure user_id is provided"""
     @wraps(f)
     def wrapper(*args, **kwargs):
-        user_id = request.headers.get('X-User-ID') or request.json.get('user_id') if request.json else None
+        user_id = request.headers.get('X-User-ID') or (request.json.get('user_id') if request.json else None)
         if not user_id:
             return jsonify({'error': 'User ID required', 'message': 'Include X-User-ID header or user_id in request'}), 400
         return f(user_id, *args, **kwargs)
+    return wrapper
+
+def handle_errors(f):
+    """Decorator to handle common errors"""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            current_app.logger.error(f'Error in {f.__name__}: {e}')
+            return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
     return wrapper
 
 # Health and System
@@ -49,25 +56,33 @@ def require_user_id(f):
 @async_route
 async def health_check():
     """Comprehensive health check"""
-    service = get_supabase_service()
-    health_data = await service.health_check()
-    
-    # Add system info
-    health_data.update({
-        'app_version': '2.0.0',
-        'environment': current_app.config.get('FLASK_ENV', 'production'),
-        'features': {
-            'authentication': True,
-            'achievements': True,
-            'goals': True,
-            'analytics': True,
-            'pdf_processing': True,
-            'real_time_stats': True
-        }
-    })
-    
-    status_code = 200 if health_data['status'] == 'healthy' else 503
-    return jsonify(health_data), status_code
+    try:
+        from services.enhanced_database_service import get_supabase_service
+        service = get_supabase_service()
+        health_data = await service.health_check()
+        
+        # Add system info
+        health_data.update({
+            'app_version': '2.0.0',
+            'environment': current_app.config.get('FLASK_ENV', 'production'),
+            'features': {
+                'authentication': True,
+                'achievements': True,
+                'goals': True,
+                'analytics': True,
+                'pdf_processing': True,
+                'real_time_stats': True
+            }
+        })
+        
+        status_code = 200 if health_data['status'] == 'healthy' else 503
+        return jsonify(health_data), status_code
+    except ImportError:
+        return jsonify({
+            'status': 'degraded',
+            'message': 'Enhanced database service not available',
+            'timestamp': datetime.now().isoformat()
+        }), 503
 
 # User Management
 @api_bp.route('/users/profile', methods=['GET'])
@@ -76,6 +91,7 @@ async def health_check():
 @async_route
 async def get_user_profile(user_id):
     """Get user profile"""
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     profile = await service.get_user_profile(user_id)
     
@@ -98,6 +114,7 @@ async def update_user_profile(user_id):
         return jsonify({'error': 'No data provided'}), 400
     
     # Validate update data
+    from utils.enhanced_validators import validate_user_data
     validation_result = validate_user_data(data, update=True)
     if not validation_result['valid']:
         return jsonify({
@@ -105,6 +122,7 @@ async def update_user_profile(user_id):
             'details': validation_result['errors']
         }), 400
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     updated_profile = await service.update_user_profile(user_id, data)
     
@@ -127,6 +145,7 @@ async def create_user_profile():
         return jsonify({'error': 'No data provided'}), 400
     
     # Validate user data
+    from utils.enhanced_validators import validate_user_data
     validation_result = validate_user_data(data)
     if not validation_result['valid']:
         return jsonify({
@@ -134,6 +153,7 @@ async def create_user_profile():
             'details': validation_result['errors']
         }), 400
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -154,7 +174,6 @@ async def create_user_profile():
 @api_bp.route('/sessions', methods=['POST'])
 @handle_errors
 @require_user_id
-@rate_limit(max_requests=30, time_window=60)
 @async_route
 async def save_typing_session(user_id):
     """Save typing session with full analytics"""
@@ -166,6 +185,7 @@ async def save_typing_session(user_id):
     data['user_id'] = user_id
     
     # Validate session data
+    from utils.enhanced_validators import validate_session_data
     validation_result = validate_session_data(data)
     if not validation_result['valid']:
         return jsonify({
@@ -201,6 +221,7 @@ async def save_typing_session(user_id):
         'end_time': data.get('end_time')
     }
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -231,6 +252,7 @@ async def get_user_sessions(user_id):
     limit = min(int(request.args.get('limit', 20)), 100)  # Max 100 per page
     session_type = request.args.get('type')
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -311,6 +333,7 @@ async def get_user_sessions(user_id):
 @async_route
 async def get_user_statistics(user_id):
     """Get comprehensive user statistics"""
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -337,6 +360,7 @@ async def get_performance_analytics(user_id):
     days = int(request.args.get('days', 30))
     days = min(max(days, 1), 365)  # Limit between 1 and 365 days
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -364,6 +388,7 @@ async def get_user_achievements(user_id):
     """Get user achievements"""
     status = request.args.get('status')  # earned, available, etc.
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -388,6 +413,7 @@ async def get_user_achievements(user_id):
 @async_route
 async def get_available_achievements():
     """Get all available achievements (public endpoint)"""
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -425,6 +451,7 @@ async def get_user_goals(user_id):
     """Get user goals"""
     status = request.args.get('status', 'active')
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -455,6 +482,7 @@ async def create_goal(user_id):
         return jsonify({'error': 'No goal data provided'}), 400
     
     # Validate goal data
+    from utils.enhanced_validators import validate_goal_data
     validation_result = validate_goal_data(data)
     if not validation_result['valid']:
         return jsonify({
@@ -462,6 +490,7 @@ async def create_goal(user_id):
             'details': validation_result['errors']
         }), 400
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -495,6 +524,7 @@ async def update_goal_progress(user_id, goal_id):
     except (ValueError, TypeError):
         return jsonify({'error': 'current_value must be a number'}), 400
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -523,6 +553,7 @@ async def update_goal_progress(user_id, goal_id):
 @async_route
 async def get_user_documents(user_id):
     """Get user's uploaded documents"""
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -544,7 +575,6 @@ async def get_user_documents(user_id):
 @api_bp.route('/documents', methods=['POST'])
 @handle_errors
 @require_user_id
-@rate_limit(max_requests=5, time_window=60)  # Limit document uploads
 @async_route
 async def save_document(user_id):
     """Save document metadata after upload"""
@@ -557,6 +587,7 @@ async def save_document(user_id):
         if field not in data:
             return jsonify({'error': f'Missing required field: {field}'}), 400
     
+    from services.enhanced_database_service import get_supabase_service
     service = get_supabase_service()
     
     try:
@@ -583,25 +614,26 @@ async def legacy_save_stats():
     """Legacy endpoint for saving stats (redirects to new session endpoint)"""
     # Get user_id from various sources
     user_id = (request.headers.get('X-User-ID') or 
-               request.json.get('userId') if request.json else None or
+               (request.json.get('userId') if request.json else None) or
                'anonymous')
     
     if user_id == 'anonymous':
         # For anonymous users, fall back to file-based storage
-        # Import the old stats service
-        from services.stats_service import StatsService
-        stats_service = StatsService(current_app.config['STATS_FILE'])
-        
-        data = request.get_json()
-        result = stats_service.save_session(data)
-        
-        if result.get('success'):
-            return jsonify(result)
-        else:
-            return jsonify(result), 500
+        try:
+            from services.stats_service import StatsService
+            stats_service = StatsService(current_app.config['STATS_FILE'])
+            
+            data = request.get_json()
+            result = stats_service.save_session(data)
+            
+            if result.get('success'):
+                return jsonify(result)
+            else:
+                return jsonify(result), 500
+        except ImportError:
+            return jsonify({'error': 'Legacy stats service not available'}), 503
     
     # For authenticated users, use the new session endpoint
-    request.view_args = {'user_id': user_id}
     return await save_typing_session(user_id)
 
 @api_bp.route('/stats', methods=['GET'])
@@ -613,10 +645,16 @@ async def legacy_get_stats():
     
     if user_id == 'anonymous':
         # Fall back to file-based storage
-        from services.stats_service import StatsService
-        stats_service = StatsService(current_app.config['STATS_FILE'])
-        stats = stats_service.get_stats()
-        return jsonify(stats)
+        try:
+            from services.stats_service import StatsService
+            stats_service = StatsService(current_app.config['STATS_FILE'])
+            stats = stats_service.get_stats()
+            return jsonify(stats)
+        except ImportError:
+            return jsonify({
+                'averageWpm': 0, 'accuracy': 0, 'practiceMinutes': 0,
+                'currentStreak': 0, 'totalSessions': 0, 'recentSessions': []
+            })
     
     # Use new database endpoint
     return await get_user_statistics(user_id)
@@ -630,17 +668,19 @@ async def legacy_reset_stats():
     
     if user_id == 'anonymous':
         # Fall back to file-based storage
-        from services.stats_service import StatsService
-        stats_service = StatsService(current_app.config['STATS_FILE'])
-        stats = stats_service.reset_stats()
-        return jsonify({
-            'success': True,
-            'message': 'Statistics reset successfully',
-            'stats': stats
-        })
+        try:
+            from services.stats_service import StatsService
+            stats_service = StatsService(current_app.config['STATS_FILE'])
+            stats = stats_service.reset_stats()
+            return jsonify({
+                'success': True,
+                'message': 'Statistics reset successfully',
+                'stats': stats
+            })
+        except ImportError:
+            return jsonify({'error': 'Legacy stats service not available'}), 503
     
-    # For authenticated users, you might want to implement a database reset
-    # For now, return an error suggesting they should delete their account data
+    # For authenticated users, return an error suggesting they contact support
     return jsonify({
         'error': 'Reset not available for authenticated users',
         'message': 'Please contact support to reset your account data'

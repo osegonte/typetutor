@@ -1,3 +1,44 @@
+#!/bin/bash
+# Let's fix your TypeTutor backend step by step
+
+echo "🔧 TypeTutor Backend Fix - Step by Step"
+echo "======================================="
+
+# Step 1: Create the directory structure
+echo "Step 1: Creating directory structure..."
+mkdir -p backend/services
+mkdir -p backend/routes  
+mkdir -p backend/utils
+mkdir -p backend/database
+mkdir -p backend/config
+mkdir -p backend/models
+
+# Create __init__.py files
+touch backend/__init__.py
+touch backend/services/__init__.py
+touch backend/routes/__init__.py
+touch backend/utils/__init__.py
+touch backend/database/__init__.py
+touch backend/config/__init__.py
+touch backend/models/__init__.py
+
+echo "✅ Directory structure created"
+
+# Step 2: Install dependencies
+echo "Step 2: Installing dependencies..."
+pip install supabase==2.3.4 asyncio-pool==0.6.0
+
+# Step 3: Add dependencies to requirements.txt
+if ! grep -q "supabase" requirements.txt 2>/dev/null; then
+    echo "supabase==2.3.4" >> requirements.txt
+    echo "asyncio-pool==0.6.0" >> requirements.txt
+fi
+
+echo "✅ Dependencies installed"
+
+# Step 4: Create enhanced database service
+echo "Step 3: Creating enhanced database service..."
+cat > backend/services/enhanced_database_service.py << 'EOF'
 # backend/services/enhanced_database_service.py
 import os
 import logging
@@ -16,24 +57,17 @@ class SupabaseService:
         
         try:
             from supabase import create_client
-            # Create client with minimal options to avoid version conflicts
             self.client = create_client(self.url, self.key)
             self._test_connection()
         except ImportError:
             raise ImportError("Run: pip install supabase")
-        except Exception as e:
-            # If there's a client creation error, log it but don't crash
-            logger.error(f"Supabase client creation failed: {e}")
-            raise
     
     def _test_connection(self):
         try:
-            # Simple connection test
-            result = self.client.table('achievements').select('id').limit(1).execute()
+            result = self.client.table('achievements').select('count').limit(1).execute()
             logger.info("✅ Supabase connection established")
-            return True
         except Exception as e:
-            logger.error(f"❌ Supabase connection test failed: {e}")
+            logger.error(f"❌ Supabase connection failed: {e}")
             raise
     
     async def get_user_statistics(self, user_id: str) -> Dict:
@@ -70,16 +104,16 @@ class SupabaseService:
                 })
             
             return {
-                'averageWpm': int(stats.get('avg_wpm', 0)),
-                'accuracy': int(stats.get('avg_accuracy', 0)),
-                'practiceMinutes': stats.get('total_time_minutes', 0),
-                'currentStreak': stats.get('current_streak', 0),
-                'totalSessions': stats.get('total_sessions', 0),
+                'averageWpm': int(stats['avg_wmp']),
+                'accuracy': int(stats['avg_accuracy']),
+                'practiceMinutes': stats['total_time_minutes'],
+                'currentStreak': stats['current_streak'],
+                'totalSessions': stats['total_sessions'],
                 'recentSessions': recent_sessions,
                 'personalBest': {
-                    'wpm': stats.get('best_wpm', 0),
-                    'accuracy': stats.get('best_accuracy', 0),
-                    'date': stats.get('last_practice_date')
+                    'wpm': stats['best_wmp'],
+                    'accuracy': stats['best_accuracy'],
+                    'date': stats['last_practice_date']
                 }
             }
         except Exception as e:
@@ -87,8 +121,7 @@ class SupabaseService:
             # Return default stats on error
             return {
                 'averageWpm': 0, 'accuracy': 0, 'practiceMinutes': 0,
-                'currentStreak': 0, 'totalSessions': 0, 'recentSessions': [],
-                'personalBest': {'wmp': 0, 'accuracy': 0, 'date': None}
+                'currentStreak': 0, 'totalSessions': 0, 'recentSessions': []
             }
     
     async def save_typing_session(self, session_data: Dict) -> Dict:
@@ -110,8 +143,7 @@ class SupabaseService:
                 return {
                     'success': True,
                     'session_id': result.data[0]['id'],
-                    'new_achievements': [],
-                    'message': 'Session saved to database'
+                    'new_achievements': []
                 }
             else:
                 raise Exception("Failed to save session")
@@ -127,12 +159,3 @@ def get_supabase_service():
     if _supabase_service is None:
         _supabase_service = SupabaseService()
     return _supabase_service
-
-# Test function
-def test_connection():
-    try:
-        service = get_supabase_service()
-        return True
-    except Exception as e:
-        print(f"Connection test failed: {e}")
-        return False

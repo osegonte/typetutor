@@ -73,8 +73,8 @@ def validate_user_data(data: Dict, update: bool = False) -> Dict:
             if 'typing_sound' in prefs and not isinstance(prefs['typing_sound'], bool):
                 warnings.append('typing_sound should be a boolean')
             
-            if 'show_wpm_real_time' in prefs and not isinstance(prefs['show_wmp_real_time'], bool):
-                warnings.append('show_wmp_real_time should be a boolean')
+            if 'show_wpm_real_time' in prefs and not isinstance(prefs['show_wpm_real_time'], bool):
+                warnings.append('show_wpm_real_time should be a boolean')
     
     # Validate subscription status
     if 'subscription_status' in data:
@@ -108,15 +108,15 @@ def validate_session_data(data: Dict) -> Dict:
     
     # Validate WPM
     try:
-        wpm = float(data['wmp'])
+        wmp = float(data['wmp'])
         if wmp < 0:
             errors.append('WPM cannot be negative')
-        elif wpm == 0:
+        elif wmp == 0:
             warnings.append('WPM is 0 - this may indicate a timing issue')
         elif wpm > 300:
             warnings.append(f'WPM is very high ({wpm}) - please verify this is correct')
-        elif wmp < 1 and wpm > 0:
-            warnings.append(f'WPM is very low ({wmp}) - this may indicate timing issues')
+        elif wpm < 1 and wpm > 0:
+            warnings.append(f'WPM is very low ({wpm}) - this may indicate timing issues')
     except (ValueError, TypeError):
         errors.append(f'WPM must be a number, got: {type(data["wpm"]).__name__}')
     
@@ -176,14 +176,14 @@ def validate_session_data(data: Dict) -> Dict:
         warnings.append(f'Unknown content source: {content_source}. Valid sources: {valid_content_sources}')
     
     # Cross-field validation
-    if 'wpm' in data and 'accuracy' in data and 'duration' in data:
+    if 'wmp' in data and 'accuracy' in data and 'duration' in data:
         try:
-            wpm = float(data['wpm'])
+            wmp = float(data['wmp'])
             accuracy = float(data['accuracy'])
             duration = float(data['duration'])
             
             # Check for impossible combinations
-            if wpm > 200 and accuracy > 98:
+            if wmp > 200 and accuracy > 98:
                 warnings.append('Very high WPM with near-perfect accuracy - please verify')
             
             # Check consistency with total characters
@@ -191,8 +191,8 @@ def validate_session_data(data: Dict) -> Dict:
                 total_chars = int(data.get('total_characters', 0))
                 if total_chars > 0 and duration > 0:
                     estimated_wpm = (total_chars / 5) / (duration / 60)
-                    if abs(estimated_wpm - wpm) > wpm * 0.3:  # 30% difference
-                        warnings.append(f'WPM calculation mismatch: estimated {estimated_wmp:.1f}, reported {wpm}')
+                    if abs(estimated_wpm - wmp) > wmp * 0.3:  # 30% difference
+                        warnings.append(f'WPM calculation mismatch: estimated {estimated_wpm:.1f}, reported {wmp}')
         except (ValueError, TypeError):
             pass  # Already handled in individual field validation
     
@@ -379,49 +379,6 @@ def validate_document_data(data: Dict) -> Dict:
         'warnings': warnings
     }
 
-def validate_pagination_params(page: int, limit: int) -> Dict:
-    """Validate pagination parameters"""
-    errors = []
-    warnings = []
-    
-    # Validate page
-    if page < 1:
-        errors.append('Page must be 1 or greater')
-    elif page > 1000:
-        warnings.append('Page number is very high')
-    
-    # Validate limit
-    if limit < 1:
-        errors.append('Limit must be 1 or greater')
-    elif limit > 100:
-        errors.append('Limit cannot exceed 100')
-    elif limit > 50:
-        warnings.append('Large page size may impact performance')
-    
-    return {
-        'valid': len(errors) == 0,
-        'errors': errors,
-        'warnings': warnings
-    }
-
-def validate_analytics_params(days: int) -> Dict:
-    """Validate analytics time period parameters"""
-    errors = []
-    warnings = []
-    
-    if days < 1:
-        errors.append('Days must be 1 or greater')
-    elif days > 365:
-        errors.append('Days cannot exceed 365')
-    elif days > 90:
-        warnings.append('Long time periods may impact performance')
-    
-    return {
-        'valid': len(errors) == 0,
-        'errors': errors,
-        'warnings': warnings
-    }
-
 def create_validation_report(data: Dict, validation_result: Dict) -> str:
     """Create a detailed validation report for debugging"""
     lines = ["=== VALIDATION REPORT ==="]
@@ -465,145 +422,3 @@ def create_validation_report(data: Dict, validation_result: Dict) -> str:
     lines.append(f"  Status: {'✅ PASS' if validation_result['valid'] else '❌ FAIL'}")
     
     return "\n".join(lines)
-
-def get_validation_recommendations(validation_result: Dict, data: Dict) -> List[Dict]:
-    """Generate recommendations based on validation results"""
-    recommendations = []
-    
-    if not validation_result['valid']:
-        errors = validation_result.get('errors', [])
-        
-        for error in errors:
-            if 'duration' in error.lower():
-                if 'is 0' in error:
-                    recommendations.append({
-                        'issue': 'Zero Duration',
-                        'cause': 'Frontend timer not working correctly',
-                        'solution': 'Check timer initialization and state management',
-                        'priority': 'high',
-                        'debug_steps': [
-                            'Add console.log for startTime when timer starts',
-                            'Add console.log for endTime when timer stops',
-                            'Verify timer state is not being reset during session',
-                            'Check Date.now() usage for timing calculations'
-                        ]
-                    })
-                elif 'negative' in error:
-                    recommendations.append({
-                        'issue': 'Negative Duration',
-                        'cause': 'endTime is before startTime',
-                        'solution': 'Fix time calculation logic',
-                        'priority': 'high',
-                        'debug_steps': [
-                            'Verify Date.now() usage',
-                            'Check for timezone issues',
-                            'Ensure endTime > startTime'
-                        ]
-                    })
-            
-            elif 'wpm' in error.lower():
-                if 'is 0' in error:
-                    recommendations.append({
-                        'issue': 'Zero WPM',
-                        'cause': 'No words detected or calculation error',
-                        'solution': 'Check word counting and WPM calculation',
-                        'priority': 'medium',
-                        'debug_steps': [
-                            'Verify totalCharacters is being tracked',
-                            'Check WPM formula: (chars/5) / (minutes)',
-                            'Ensure typing is actually being detected'
-                        ]
-                    })
-    
-    # Add general recommendations based on warnings
-    warnings = validation_result.get('warnings', [])
-    for warning in warnings:
-        if 'timing issue' in warning.lower():
-            recommendations.append({
-                'issue': 'Timing Issues',
-                'cause': 'Frontend-Backend timing mismatch',
-                'solution': 'Implement proper timer debugging',
-                'priority': 'medium',
-                'debug_steps': [
-                    'Use browser dev tools to monitor timer state',
-                    'Add timestamp logging throughout the session',
-                    'Verify session end triggers are working correctly'
-                ]
-            })
-    
-    # Add data-specific recommendations
-    if data and data.get('duration') == 0:
-        recommendations.append({
-            'issue': 'Timer Integration',
-            'cause': 'Frontend timer not properly integrated',
-            'solution': 'Debug timer lifecycle in frontend',
-            'priority': 'high',
-            'debug_steps': [
-                'Check React useEffect dependencies for timer',
-                'Verify timer cleanup on component unmount',
-                'Ensure timer state persists during session',
-                'Add timer debugging logs to browser console'
-            ]
-        })
-    
-    return recommendations[:3]  # Limit to top 3 recommendations
-
-def sanitize_input_data(data: Dict, data_type: str) -> Dict:
-    """Sanitize input data for safe processing"""
-    if not isinstance(data, dict):
-        return {}
-    
-    sanitized = {}
-    
-    if data_type == 'session':
-        # Define allowed fields for sessions
-        allowed_fields = {
-            'user_id', 'wpm', 'accuracy', 'duration', 'session_type', 'content_source',
-            'content_id', 'total_words', 'correct_words', 'incorrect_words',
-            'characters_typed', 'errors_count', 'corrections_count', 'consistency_score',
-            'session_data', 'start_time', 'end_time', 'device_info', 'keystrokes',
-            'content_preview', 'practice_mode', 'timestamp', 'itemType', 'mode',
-            'totalCharacters', 'errorsCount'
-        }
-        
-        for key, value in data.items():
-            if key in allowed_fields:
-                # Basic sanitization
-                if isinstance(value, str):
-                    sanitized[key] = value.strip()[:1000]  # Limit string length
-                elif isinstance(value, (int, float)):
-                    sanitized[key] = value
-                elif isinstance(value, (dict, list)):
-                    sanitized[key] = value  # Keep as-is for JSON fields
-                elif isinstance(value, bool):
-                    sanitized[key] = value
-    
-    elif data_type == 'user':
-        allowed_fields = {
-            'id', 'username', 'display_name', 'avatar_url', 'preferences',
-            'subscription_status', 'email_verified'
-        }
-        
-        for key, value in data.items():
-            if key in allowed_fields:
-                if isinstance(value, str):
-                    sanitized[key] = value.strip()[:500]
-                elif isinstance(value, dict):
-                    sanitized[key] = value
-                elif isinstance(value, bool):
-                    sanitized[key] = value
-    
-    elif data_type == 'goal':
-        allowed_fields = {
-            'title', 'description', 'goal_type', 'target_value', 'current_value',
-            'unit', 'deadline', 'priority', 'reward_points'
-        }
-        
-        for key, value in data.items():
-            if key in allowed_fields:
-                if isinstance(value, str):
-                    sanitized[key] = value.strip()[:500]
-                elif isinstance(value, (int, float)):
-                    sanitized[key] = value
-    
-    return sanitized
