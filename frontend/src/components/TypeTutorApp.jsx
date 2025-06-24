@@ -3,6 +3,85 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp, ChevronLeft } from 'lucide-react';
 import { uploadPDF, processText, getStats, saveStats } from '../services/api';
 import DebuggingPanel from './DebuggingPanel';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import AuthModal from './components/auth/AuthModal';
+import UserProfile from './components/auth/UserProfile';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { User, LogIn } from 'lucide-react';
+
+// In your header section, replace the existing header with:
+const AppHeader = ({ darkMode, toggleDarkMode }) => {
+  const { isAuthenticated, user, loading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+
+  const handleAuthClick = (mode) => {
+    setAuthMode(mode);
+    setShowAuthModal(true);
+  };
+
+  return (
+    <>
+      <header className={`px-6 py-4 flex justify-between items-center ${darkMode ? 'bg-gray-900/80 backdrop-blur-sm' : 'bg-white/80 backdrop-blur-sm'} border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'} relative z-10`}>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-xl font-bold">TypeTutor <span className="text-sm font-normal text-gray-500">Study Edition</span></h1>
+          
+          {isAuthenticated && user && (
+            <div className={`px-3 py-1 rounded-full text-xs ${darkMode ? 'bg-green-900/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+              Signed in as {user.display_name || user.username}
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {!loading && (
+            <>
+              {isAuthenticated ? (
+                <UserProfile darkMode={darkMode} />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleAuthClick('login')}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all ${
+                      darkMode 
+                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700' 
+                        : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
+                    }`}
+                  >
+                    <LogIn size={16} />
+                    <span>Sign In</span>
+                  </button>
+                  <button
+                    onClick={() => handleAuthClick('register')}
+                    className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all"
+                  >
+                    <User size={16} />
+                    <span>Sign Up</span>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          
+          <button 
+            onClick={toggleDarkMode}
+            className={`p-2 rounded-full ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+        </div>
+      </header>
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        darkMode={darkMode}
+        initialMode={authMode}
+      />
+    </>
+  );
+};
 
 // Aurora Background Component
 const Aurora = (props) => {
