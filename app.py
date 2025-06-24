@@ -535,4 +535,4 @@ if __name__ == '__main__':
     print("      curl http://localhost:5001/api/health")
     print("      curl http://localhost:5001/api/auth/health")
     
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)# Force rebuild: Tue Jun 24 21:09:54 CEST 2025
