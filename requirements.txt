@@ -12,6 +12,5 @@ psutil==5.9.8
 # Development dependencies
 python-dotenv==1.0.0
 
-# Optional: Database support (only enable if using Supabase)
-# supabase==2.0.0
-# psycopg2-binary==2.9.9
+supabase==2.3.4
+asyncio-pool==0.6.0
