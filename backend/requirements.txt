@@ -1,0 +1,14 @@
+# Core Flask dependencies
+Flask==3.0.0
+Flask-Cors==4.0.0
+gunicorn==21.2.0
+
+# Optional: JWT Authentication
+PyJWT==2.8.0
+
+# Optional: PDF processing
+pypdf==4.0.1
+
+# Optional: Enhanced features
+requests==2.32.4
+python-dotenv==1.0.0

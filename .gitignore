@@ -1,32 +1,38 @@
-
-# Backend improvements
-backend_backup/
-backend/__pycache__/
-backend/*/__pycache__/
-backend/*/*/__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
 *.so
-.coverage
-htmlcov/
-.pytest_cache/
-.cache
-logs/
-cache/
-*.log
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables
 .env
 .env.local
 .env.production
 
-# Test files
-tests/uploads/
-tests/cache/
-tests/logs/
-test_stats.json
+# Logs
+*.log
+logs/
 
 # IDE
 .vscode/
@@ -38,19 +44,23 @@ test_stats.json
 .DS_Store
 Thumbs.db
 
-# Cleanup - prevent future clutter
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vercel
+
+# Backend data and uploads
+backend/data/
+backend/uploads/
+backend/logs/
+backend/cache/
+
+# Backup and temporary files
 *.backup*
 *.bak
-backend_*.log
-frontend.log
-test_*.py
-fix_*.py
-*_test.sh
-complete_setup.sh
-schema_setup_guide.sh
-setup_environment.sh
+*.tmp
 
-# Keep essential files
-!backend/app.py
-!scripts/migrate_to_supabase.py
-!scripts/database_schema.sql
+# Test files
+.pytest_cache/
+.coverage
+htmlcov/
