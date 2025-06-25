@@ -46,29 +46,7 @@ if request and hasattr(request, 'headers'):
 
 
 # Enhanced preflight request handling
-@app.before_request
-def handle_preflight():
-    origin = request.headers.get('Origin', '')
-    
-    # Debug logging
-    if origin:
-        print(f"🔍 Request from origin: {origin}")
-    
-    # Auto-add Vercel domains
-    if origin and 'typetutor' in origin and 'vercel.app' in origin:
-        if origin not in allowed_origins:
-            allowed_origins.append(origin)
-            print(f"🌐 Auto-added Vercel origin: {origin}")
-    
-    if request.method == "OPTIONS":
-        response = make_response()
-        # Allow the specific origin or wildcard for development
-        allowed_origin = origin if origin in allowed_origins else "*"
-        response.headers.add("Access-Control-Allow-Origin", allowed_origin)
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID")
-        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', "true")
-        return response
+
 
 print(f"🌐 CORS allowed origins: {allowed_origins}")
 
@@ -81,22 +59,7 @@ CORS(app,
      expose_headers=["Authorization"])
 
 # Enhanced preflight handling
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = jsonify({'status': 'ok'})
-        origin = request.headers.get('Origin')
-        
-        # Check if origin is allowed
-        if origin in allowed_origins:
-            response.headers.add("Access-Control-Allow-Origin", origin)
-        else:
-            response.headers.add("Access-Control-Allow-Origin", "*")
-            
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID")
-        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
-        response.headers.add('Access-Control-Allow-Credentials', "true")
-        return response
+
 
 # Create directories
 os.makedirs('data', exist_ok=True)
@@ -200,15 +163,7 @@ def health():
     })
 
 # Add CORS headers to all responses
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin in allowed_origins:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-ID')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+
 
 # Rest of your existing routes remain the same...
 @app.route('/api/stats')
@@ -265,8 +220,35 @@ def get_stats():
             'error': str(e)
         })
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
+
+# TEMPORARY WILDCARD CORS - Allows ALL origins for testing
+@app.after_request
+def temp_wildcard_cors(response):
+    origin = request.headers.get('Origin', '')
+    print(f"🔍 Request from origin: {origin}")
+    
+    # Allow any origin temporarily
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-User-ID"
+    response.headers["Access-Control-Allow-Credentials"] = "false"  # Note: must be false with wildcard
+    
+    print(f"✅ CORS headers set for origin: {origin}")
+    return response
+
+# Enhanced OPTIONS handling
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-User-ID"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+
+
+if __name__ == \'__main__\':port = int(os.environ.get('PORT', 5001))
     
     print("🚀 TypeTutor Enhanced Backend with Production CORS")
     print(f"   Port: {port}")
