@@ -3,9 +3,13 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "nodeVersion": "18.x",
   "env": {
     "VITE_API_URL": "https://typetutor-production.up.railway.app/api"
+  },
+  "build": {
+    "env": {
+      "VITE_API_URL": "https://typetutor-production.up.railway.app/api"
+    }
   },
   "rewrites": [
     {
