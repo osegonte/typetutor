@@ -1,10 +1,9 @@
-import DeploymentDebug from './components/DeploymentDebug';
+import React from 'react';
+import AuthWrapper from './components/AuthWrapper';
+import './index.css';
 
 function App() {
-  return (
-    <>
-      <DeploymentDebug />  {/* Add this line temporarily */}
-      <AuthWrapper />
-    </>
-  );
+  return <AuthWrapper />;
 }
+
+export default App;
