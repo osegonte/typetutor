@@ -60,8 +60,8 @@ export default defineConfig(({ command, mode }) => {
             // UI libraries
             'ui-vendor': ['lucide-react'],
             
-            // Utilities
-            'utils-vendor': ['lodash', 'date-fns']
+            // Utilities - REMOVED date-fns since it's not installed
+            'utils-vendor': ['lodash']
           }
         }
       },
@@ -75,14 +75,13 @@ export default defineConfig(({ command, mode }) => {
       postcss: './postcss.config.js'
     },
 
-    // Dependency optimization
+    // Dependency optimization - REMOVED date-fns
     optimizeDeps: {
       include: [
         'react',
         'react-dom',
         'lucide-react',
-        'lodash',
-        'date-fns'
+        'lodash'
       ]
     },
 
