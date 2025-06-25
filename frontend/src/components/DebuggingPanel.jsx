@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { resetStats } from '../services/api';
 
 const DebuggingPanel = ({ darkMode }) => {
   const [debugInfo, setDebugInfo] = useState(null);
