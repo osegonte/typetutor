@@ -1,4 +1,4 @@
-# Updated app.py with better CORS handling
+# Updated app.py with production CORS fix
 import os
 import sys
 from flask import Flask, jsonify, request
@@ -23,20 +23,46 @@ app.config.update({
     'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7
 })
 
-# IMPROVED CORS - Allow all origins for now to fix the issue
+# PRODUCTION CORS FIX - Allow specific domains
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000", 
+    "https://typetutor.vercel.app",
+    "https://typetutor-git-main-osegonte.vercel.app",
+    "https://typetutor-osegonte.vercel.app"
+]
+
+# Add any additional Vercel preview URLs
+if os.environ.get('VERCEL_URL'):
+    allowed_origins.append(f"https://{os.environ.get('VERCEL_URL')}")
+
+# Get Vercel branch URLs from environment
+vercel_git_commit_ref = os.environ.get('VERCEL_GIT_COMMIT_REF', '')
+if vercel_git_commit_ref:
+    allowed_origins.append(f"https://typetutor-git-{vercel_git_commit_ref}-osegonte.vercel.app")
+
+print(f"🌐 CORS allowed origins: {allowed_origins}")
+
 CORS(app, 
-     origins=["*"],  # Allow all origins temporarily
+     origins=allowed_origins,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "X-User-ID"],
      supports_credentials=True,
      expose_headers=["Authorization"])
 
-# Handle preflight requests explicitly
+# Enhanced preflight handling
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
-        response = jsonify()
-        response.headers.add("Access-Control-Allow-Origin", "*")
+        response = jsonify({'status': 'ok'})
+        origin = request.headers.get('Origin')
+        
+        # Check if origin is allowed
+        if origin in allowed_origins:
+            response.headers.add("Access-Control-Allow-Origin", origin)
+        else:
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            
         response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID")
         response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
         response.headers.add('Access-Control-Allow-Credentials', "true")
@@ -52,16 +78,16 @@ try:
     from backend.routes.auth_routes import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     print("✅ Authentication routes registered")
+    AUTH_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  Authentication routes not available: {e}")
+    AUTH_AVAILABLE = False
 
 # Import token_required decorator
 try:
     from backend.routes.auth_routes import token_required
-    AUTH_AVAILABLE = True
 except ImportError:
     print("⚠️  JWT authentication not available - using fallback mode")
-    AUTH_AVAILABLE = False
     
     # Fallback decorator that does nothing
     def token_required(f):
@@ -111,7 +137,9 @@ def health():
         'authentication_enabled': AUTH_AVAILABLE,
         'authentication_working': auth_status,
         'cors_enabled': True,
-        'environment': os.environ.get('FLASK_ENV', 'development'),
+        'cors_origins': len(allowed_origins),
+        'environment': os.environ.get('FLASK_ENV', 'production'),
+        'timestamp': os.environ.get('RAILWAY_DEPLOYMENT_ID', 'unknown'),
         'features': {
             'supabase_integration': database_status,
             'jwt_authentication': auth_status,
@@ -120,7 +148,8 @@ def health():
             'protected_routes': AUTH_AVAILABLE,
             '21_achievements': database_status,
             'legacy_compatibility': True,
-            'pdf_processing': True
+            'pdf_processing': True,
+            'production_cors': True
         },
         'endpoints': {
             'auth': {
@@ -140,9 +169,18 @@ def health():
         }
     })
 
-# Rest of your existing routes remain the same...
-# (I'm not copying them all here to save space, but they stay identical)
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-User-ID')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
+# Rest of your existing routes remain the same...
 @app.route('/api/stats')
 def get_stats():
     """Get user statistics - now supports both authenticated and anonymous users"""
@@ -197,17 +235,14 @@ def get_stats():
             'error': str(e)
         })
 
-# Add all your other existing routes here...
-# (They remain the same)
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     
-    print("🚀 TypeTutor Enhanced Backend with Authentication")
+    print("🚀 TypeTutor Enhanced Backend with Production CORS")
     print(f"   Port: {port}")
-    print(f"   Environment: {os.environ.get('FLASK_ENV', 'development')}")
+    print(f"   Environment: {os.environ.get('FLASK_ENV', 'production')}")
     print(f"   Database: {app.config.get('USE_DATABASE')}")
     print(f"   Authentication: {AUTH_AVAILABLE}")
-    print(f"   CORS: Enabled for all origins")
+    print(f"   CORS Origins: {len(allowed_origins)}")
     
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
