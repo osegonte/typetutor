@@ -9,14 +9,11 @@ export default defineConfig(({ command, mode }) => {
   return {
     plugins: [
       react({
-        // Enable React Fast Refresh
         fastRefresh: isDevelopment,
-        // Optimize JSX in production
         jsxRuntime: 'automatic'
       })
     ],
 
-    // Path resolution
     resolve: {
       alias: {
         '@': resolve(process.cwd(), 'src'),
@@ -28,54 +25,36 @@ export default defineConfig(({ command, mode }) => {
       }
     },
 
-    // Development server configuration
     server: {
       port: 5173,
       host: true,
-      cors: true,
-      proxy: {
-        '/api': {
-          target: process.env.VITE_API_URL || 'http://localhost:5001',
-          changeOrigin: true,
-          secure: false
-        }
-      }
+      cors: true
     },
 
-    // Build optimizations
     build: {
       target: 'es2020',
       outDir: 'dist',
-      sourcemap: isDevelopment,
+      sourcemap: false,
       minify: isProduction ? 'terser' : false,
       
-      // Rollup options for code splitting
       rollupOptions: {
         output: {
-          // Manual chunks for better caching
           manualChunks: {
-            // React ecosystem
+            // Only include chunks that actually have content
             'react-vendor': ['react', 'react-dom'],
-            
-            // UI libraries
             'ui-vendor': ['lucide-react'],
-            
-            // Utilities - REMOVED date-fns since it's not installed
-            'utils-vendor': ['lodash']
+            // Remove utils-vendor since lodash might not be used enough to warrant a separate chunk
           }
         }
       },
 
-      // Chunk size warnings
       chunkSizeWarningLimit: 1000
     },
 
-    // CSS preprocessing
     css: {
       postcss: './postcss.config.js'
     },
 
-    // Dependency optimization - REMOVED date-fns
     optimizeDeps: {
       include: [
         'react',
@@ -85,7 +64,6 @@ export default defineConfig(({ command, mode }) => {
       ]
     },
 
-    // Environment variables
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
       __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
