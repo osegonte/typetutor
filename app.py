@@ -32,7 +32,8 @@ allowed_origins = [
     "https://typetutor-osegonte.vercel.app",
     "https://typetutor-2fo842jj2-osegontes-projects.vercel.app",
     "https://typetutor-frontend-17neeudr8-osegontes-projects.vercel.app",
-    "https://typetutor.dev"
+    "https://typetutor.dev",
+    "https://typetutor-nhvu62hto-osegontes-projects.vercel.app",
 ]
 
 # Also allow all Vercel preview domains for your project
