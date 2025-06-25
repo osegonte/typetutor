@@ -1,7 +1,7 @@
 # Updated app.py with production CORS fix
 import os
 import sys
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 
 # Fix Python path
@@ -23,7 +23,7 @@ app.config.update({
     'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7
 })
 
-# PRODUCTION CORS FIX - Allow specific domains
+# EMERGENCY CORS FIX - Updated origins
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000", 
@@ -32,8 +32,8 @@ allowed_origins = [
     "https://typetutor-osegonte.vercel.app",
     "https://typetutor-2fo842jj2-osegontes-projects.vercel.app",
     "https://typetutor-frontend-17neeudr8-osegontes-projects.vercel.app",
-    "https://typetutor.dev",
     "https://typetutor-nhvu62hto-osegontes-projects.vercel.app",
+    "https://typetutor.dev"
 ]
 
 # Also allow all Vercel preview domains for your project
@@ -43,6 +43,32 @@ if request and hasattr(request, 'headers'):
     if re.match(r'https://typetutor.*\.vercel\.app$', origin):
         if origin not in allowed_origins:
             allowed_origins.append(origin)
+
+
+# Enhanced preflight request handling
+@app.before_request
+def handle_preflight():
+    origin = request.headers.get('Origin', '')
+    
+    # Debug logging
+    if origin:
+        print(f"🔍 Request from origin: {origin}")
+    
+    # Auto-add Vercel domains
+    if origin and 'typetutor' in origin and 'vercel.app' in origin:
+        if origin not in allowed_origins:
+            allowed_origins.append(origin)
+            print(f"🌐 Auto-added Vercel origin: {origin}")
+    
+    if request.method == "OPTIONS":
+        response = make_response()
+        # Allow the specific origin or wildcard for development
+        allowed_origin = origin if origin in allowed_origins else "*"
+        response.headers.add("Access-Control-Allow-Origin", allowed_origin)
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,X-User-ID")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS")
+        response.headers.add('Access-Control-Allow-Credentials', "true")
+        return response
 
 print(f"🌐 CORS allowed origins: {allowed_origins}")
 
