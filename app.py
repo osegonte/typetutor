@@ -24,22 +24,26 @@ app.config.update({
 })
 
 # PRODUCTION CORS FIX - Allow specific domains
+# PRODUCTION CORS FIX - Allow specific domains
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000", 
     "https://typetutor.vercel.app",
     "https://typetutor-git-main-osegonte.vercel.app",
-    "https://typetutor-osegonte.vercel.app"
+    "https://typetutor-osegonte.vercel.app",
+    # Your specific URLs:
+    "https://typetutor-frontend-17neeudr8-osegontes-projects.vercel.app",
+    "https://typetutor.dev",
+    # Add wildcard for Vercel preview URLs:
+    "https://typetutor-frontend-*-osegontes-projects.vercel.app"
 ]
 
-# Add any additional Vercel preview URLs
-if os.environ.get('VERCEL_URL'):
-    allowed_origins.append(f"https://{os.environ.get('VERCEL_URL')}")
-
-# Get Vercel branch URLs from environment
-vercel_git_commit_ref = os.environ.get('VERCEL_GIT_COMMIT_REF', '')
-if vercel_git_commit_ref:
-    allowed_origins.append(f"https://typetutor-git-{vercel_git_commit_ref}-osegonte.vercel.app")
+# Also allow all Vercel preview domains for your project
+import re
+if request and hasattr(request, 'headers'):
+    origin = request.headers.get('Origin', '')
+    if re.match(r'https://typetutor.*\.vercel\.app$', origin):
+        allowed_origins.append(origin)
 
 print(f"🌐 CORS allowed origins: {allowed_origins}")
 
@@ -48,6 +52,7 @@ CORS(app,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "X-User-ID"],
      supports_credentials=True,
+     expose_headers=["Authorization"])
      expose_headers=["Authorization"])
 
 # Enhanced preflight handling
