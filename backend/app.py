@@ -1,7 +1,6 @@
 import os
 import sys
 from flask import Flask, jsonify, request, make_response
-from flask_cors import CORS
 from datetime import datetime
 
 # Add current directory to path
@@ -9,24 +8,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 app = Flask(__name__)
-
+# CORS Configuration - Single Clean Setupfrom flask_cors import CORSCORS(app,      origins=[         "https://typetutor.vercel.app",         "https://typetutor-git-main-osegontes-projects.vercel.app",         "http://localhost:3000",         "http://localhost:5173"     ],     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],     supports_credentials=True,     resources={r"/*": {"origins": "*"}})@app.after_requestdef after_request(response):    origin = request.headers.get('Origin')    allowed_origins = [        "https://typetutor.vercel.app",        "https://typetutor-git-main-osegontes-projects.vercel.app",        "http://localhost:3000",        "http://localhost:5173"    ]        if origin in allowed_origins:        response.headers['Access-Control-Allow-Origin'] = origin        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With'        response.headers['Access-Control-Allow-Credentials'] = 'true'        return response
 # CORS Configuration for Production
-CORS(app, 
-     origins=[
-         "https://typetutor.vercel.app",
-         "https://typetutor-git-main-osegontes-projects.vercel.app",
-         "https://*.vercel.app",  # All Vercel preview deployments
-         "http://localhost:3000",  # Local development
-         "http://localhost:5173"   # Vite dev server
-     ],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
-     supports_credentials=True,
-     resources={r"/*": {"origins": "*"}}  # Allow all routes
-)
 
 # Handle preflight requests
-@app.before_request
 def handle_preflight():
     from flask import request, make_response
     if request.method == "OPTIONS":
@@ -49,37 +34,7 @@ app.config.update({
 })
 
 # DEFINITIVE CORS SOLUTION - Dynamic origin checking
-def is_allowed_origin(origin):
-    """Check if origin is allowed with dynamic Vercel support"""
-    if not origin:
-        return False
-    
-    # Exact matches for known domains
-    allowed_exact = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://typetutor.vercel.app",
-        "https://typetutor-git-main-osegontes-projects.vercel.app",
-        "https://typetutor-osegonte.vercel.app",
-        "https://typetutor.dev"
-    ]
-    
-    if origin in allowed_exact:
-        return True
-    
-    # Pattern matching for Vercel preview deployments
-    import re
-    if re.match(r'https://typetutor.*\.vercel\.app$', origin):
-        return True
-    
-    return False
-
 # Initialize CORS with custom origin checker
-CORS(app, 
-
-# Enhanced preflight handling
-@app.before_request
-def handle_preflight():
     """Handle OPTIONS preflight requests"""
     if request.method == "OPTIONS":
         origin = request.headers.get('Origin')
@@ -98,7 +53,6 @@ def handle_preflight():
         return response
 
 # Add CORS headers to all responses
-@app.after_request
 def after_request(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
