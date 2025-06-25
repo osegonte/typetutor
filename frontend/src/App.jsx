@@ -1,14 +1,9 @@
 import React from 'react';
-import { AuthProvider } from './context/AuthContext';
-import TypeTutorApp from './components/TypeTutorApp';
+import AuthWrapper from './components/AuthWrapper';
 import './index.css';
 
 function App() {
-  return (
-    <AuthProvider>
-      <TypeTutorApp />
-    </AuthProvider>
-  );
+  return <AuthWrapper />;
 }
 
 export default App;
