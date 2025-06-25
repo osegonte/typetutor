@@ -24,18 +24,15 @@ app.config.update({
 })
 
 # PRODUCTION CORS FIX - Allow specific domains
-# PRODUCTION CORS FIX - Allow specific domains
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000", 
     "https://typetutor.vercel.app",
-    "https://typetutor-git-main-osegonte.vercel.app",
+    "https://typetutor-git-main-osegontes-projects.vercel.app",
     "https://typetutor-osegonte.vercel.app",
-    # Your specific URLs:
+    "https://typetutor-2fo842jj2-osegontes-projects.vercel.app",
     "https://typetutor-frontend-17neeudr8-osegontes-projects.vercel.app",
-    "https://typetutor.dev",
-    # Add wildcard for Vercel preview URLs:
-    "https://typetutor-frontend-*-osegontes-projects.vercel.app"
+    "https://typetutor.dev"
 ]
 
 # Also allow all Vercel preview domains for your project
@@ -43,7 +40,8 @@ import re
 if request and hasattr(request, 'headers'):
     origin = request.headers.get('Origin', '')
     if re.match(r'https://typetutor.*\.vercel\.app$', origin):
-        allowed_origins.append(origin)
+        if origin not in allowed_origins:
+            allowed_origins.append(origin)
 
 print(f"🌐 CORS allowed origins: {allowed_origins}")
 

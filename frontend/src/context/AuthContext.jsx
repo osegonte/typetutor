@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        credentials: 'omit',
+        mode: 'cors', credentials: 'omit',
         body: JSON.stringify({ email, password }),
       });
 
@@ -110,7 +110,7 @@ export const AuthProvider = ({ children }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        credentials: 'omit',
+        mode: 'cors', credentials: 'omit',
         body: JSON.stringify({ email, password, display_name: displayName }),
       });
 
