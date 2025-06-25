@@ -10,6 +10,33 @@ sys.path.insert(0, current_dir)
 
 app = Flask(__name__)
 
+# CORS Configuration for Production
+CORS(app, 
+     origins=[
+         "https://typetutor.vercel.app",
+         "https://typetutor-git-main-osegontes-projects.vercel.app",
+         "https://*.vercel.app",  # All Vercel preview deployments
+         "http://localhost:3000",  # Local development
+         "http://localhost:5173"   # Vite dev server
+     ],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+     supports_credentials=True,
+     resources={r"/*": {"origins": "*"}}  # Allow all routes
+)
+
+# Handle preflight requests
+@app.before_request
+def handle_preflight():
+    from flask import request, make_response
+    if request.method == "OPTIONS":
+        response = make_response()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,Accept,X-Requested-With")
+        response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS")
+        response.headers.add('Access-Control-Max-Age', "86400")
+        return response
+
 # Configuration
 app.config.update({
     'SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
@@ -49,11 +76,6 @@ def is_allowed_origin(origin):
 
 # Initialize CORS with custom origin checker
 CORS(app, 
-     origins=is_allowed_origin,
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "X-User-ID", "Accept", "Origin"],
-     supports_credentials=False,
-     expose_headers=["Authorization"])
 
 # Enhanced preflight handling
 @app.before_request
