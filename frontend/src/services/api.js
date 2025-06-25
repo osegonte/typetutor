@@ -141,6 +141,16 @@ export const checkHealth = async () => {
   }
 };
 
+export const resetStats = async () => {
+  try {
+    console.log('🗑️ Resetting stats...');
+    return await apiClient.post('/reset-stats', {});
+  } catch (error) {
+    console.error('❌ Error resetting stats:', error);
+    throw error;
+  }
+};
+
 // Test API connection on load
 console.log('🧪 Testing API connection...');
 checkHealth()
