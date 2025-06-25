@@ -58,7 +58,7 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold">Welcome Back</h2>
+        <h2 className={`text-2xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>Welcome Back</h2>
         <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           Sign in to your TypeTutor account
         </p>
@@ -74,11 +74,11 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
             Email Address
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} size={18} />
             <input
               type="email"
               name="email"
@@ -86,8 +86,8 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
               onChange={handleInputChange}
               className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all ${
                 darkMode 
-                  ? 'bg-gray-800 border-gray-700 text-gray-100' 
-                  : 'bg-white border-gray-300 text-gray-900'
+                  ? 'bg-gray-800/80 backdrop-blur-sm border-gray-700 text-gray-100 placeholder-gray-400' 
+                  : 'bg-white/80 backdrop-blur-sm border-gray-300 text-gray-900 placeholder-gray-500'
               } ${formErrors.email ? 'border-red-500' : ''}`}
               placeholder="Enter your email"
               disabled={loading}
@@ -99,11 +99,11 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">
+          <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
             Password
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+            <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} size={18} />
             <input
               type={showPassword ? 'text' : 'password'}
               name="password"
@@ -111,8 +111,8 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
               onChange={handleInputChange}
               className={`w-full pl-10 pr-10 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all ${
                 darkMode 
-                  ? 'bg-gray-800 border-gray-700 text-gray-100' 
-                  : 'bg-white border-gray-300 text-gray-900'
+                  ? 'bg-gray-800/80 backdrop-blur-sm border-gray-700 text-gray-100 placeholder-gray-400' 
+                  : 'bg-white/80 backdrop-blur-sm border-gray-300 text-gray-900 placeholder-gray-500'
               } ${formErrors.password ? 'border-red-500' : ''}`}
               placeholder="Enter your password"
               disabled={loading}
@@ -120,7 +120,9 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
+                darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-600'
+              }`}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -139,12 +141,12 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
               onChange={handleInputChange}
               className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
             />
-            <span className="ml-2 text-sm">Remember me</span>
+            <span className={`ml-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Remember me</span>
           </label>
           
           <button
             type="button"
-            className="text-sm text-purple-600 hover:text-purple-700"
+            className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
           >
             Forgot password?
           </button>
@@ -153,7 +155,7 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
           {loading ? (
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -171,7 +173,7 @@ const LoginForm = ({ darkMode, onSwitchToRegister, onClose }) => {
           Don't have an account?{' '}
           <button
             onClick={onSwitchToRegister}
-            className="text-purple-600 hover:text-purple-700 font-medium"
+            className="text-purple-600 hover:text-purple-700 font-medium transition-colors"
           >
             Sign up
           </button>
