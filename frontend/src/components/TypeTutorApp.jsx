@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Moon, Sun, BarChart2, Upload, FileText, ChevronRight, Info, ArrowLeft, RotateCcw, Pause, Play, Target, Clock, Zap, AlertCircle, Trophy, TrendingUp, ChevronLeft } from 'lucide-react';
 import { uploadPDF, processText, getStats, saveStats } from '../services/api';
-import DebuggingPanel from './DebuggingPanel';
 
 // Aurora Background Component
 const Aurora = (props) => {
