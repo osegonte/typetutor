@@ -1,8 +1,11 @@
 [phases.setup]
-nixPkgs = ['python310', 'python310Packages.pip']
+nixPkgs = ['python3', 'python3Packages.pip', 'python3Packages.setuptools']
 
 [phases.install]
-cmds = ['python -m pip install --upgrade pip', 'pip install -r requirements.txt']
+cmds = [
+  'python3 -m pip install --upgrade pip',
+  'python3 -m pip install -r requirements.txt'
+]
 
 [start]
-cmd = 'gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120 --worker-class sync --workers 2'
+cmd = 'python3 -m gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120 --worker-class sync --workers 2'
