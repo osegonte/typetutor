@@ -415,4 +415,4 @@ if __name__ == '__main__':
     for origin in ALLOWED_ORIGINS:
         print(f"     - {origin}")
     
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)# Force redeploy
