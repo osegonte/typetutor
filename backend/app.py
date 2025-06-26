@@ -9,53 +9,6 @@ sys.path.insert(0, current_dir)
 
 app = Flask(__name__)
 
-# CORS Configuration - Single Clean Setup
-from flask_cors import CORS
-
-CORS(app, 
-     origins=[
-         "https://typetutor.vercel.app",
-         "https://typetutor-git-main-osegontes-projects.vercel.app",
-         "http://localhost:3000",
-         "http://localhost:5173"
-     ],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
-     supports_credentials=True,
-     resources={r"/*": {"origins": "*"}}
-)
-
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    allowed_origins = [
-        "https://typetutor.vercel.app",
-        "https://typetutor-git-main-osegontes-projects.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:5173"
-    ]
-    
-    if origin in allowed_origins:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-    
-    return response
-
-# CORS Configuration for Production
-
-# Handle preflight requests
-def handle_preflight():
-    from flask import request, make_response
-    if request.method == "OPTIONS":
-        response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,Accept,X-Requested-With")
-        response.headers.add('Access-Control-Allow-Methods', "GET,POST,PUT,DELETE,OPTIONS")
-        response.headers.add('Access-Control-Max-Age', "86400")
-        return response
-
 # Configuration
 app.config.update({
     'SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
@@ -67,35 +20,80 @@ app.config.update({
     'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7
 })
 
-# DEFINITIVE CORS SOLUTION - Dynamic origin checking
-# Initialize CORS with custom origin checker
-    """Handle OPTIONS preflight requests"""
+# CORS Configuration - CLEAN SINGLE APPROACH
+from flask_cors import CORS
+
+# Define allowed origins
+ALLOWED_ORIGINS = [
+    "https://typetutor.vercel.app",
+    "https://typetutor-git-main-osegontes-projects.vercel.app",
+    "https://*.vercel.app",  # Allow all Vercel preview deployments
+    "http://localhost:3000",
+    "http://localhost:5173"
+]
+
+# Configure CORS with proper settings
+CORS(app, 
+     origins=ALLOWED_ORIGINS,
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "Origin"],
+     supports_credentials=True,
+     send_wildcard=False,
+     expose_headers=["Authorization"]
+)
+
+# Helper function to check allowed origins (including wildcard matching)
+def is_allowed_origin(origin):
+    if not origin:
+        return False
+    
+    # Check exact matches
+    exact_matches = [
+        "https://typetutor.vercel.app",
+        "https://typetutor-git-main-osegontes-projects.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ]
+    
+    if origin in exact_matches:
+        return True
+    
+    # Check Vercel preview domains (*.vercel.app)
+    if origin.startswith("https://") and origin.endswith(".vercel.app"):
+        return True
+    
+    return False
+
+# Handle preflight OPTIONS requests
+@app.before_request
+def handle_preflight():
     if request.method == "OPTIONS":
         origin = request.headers.get('Origin')
-        response = make_response()
         
         if is_allowed_origin(origin):
+            response = make_response()
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-User-ID, Accept, Origin"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With, Origin"
             response.headers["Access-Control-Max-Age"] = "86400"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
             
-            print(f"✅ CORS preflight OK for origin: {origin}")
+            print(f"✅ CORS preflight approved for: {origin}")
+            return response
         else:
-            print(f"❌ CORS preflight rejected for origin: {origin}")
-        
-        return response
+            print(f"❌ CORS preflight rejected for: {origin}")
+            return make_response("Origin not allowed", 403)
 
 # Add CORS headers to all responses
+@app.after_request
 def after_request(response):
-    """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
     
     if is_allowed_origin(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-User-ID, Accept, Origin"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Expose-Headers"] = "Authorization"
+        print(f"✅ CORS headers added for: {origin}")
     
     return response
 
@@ -110,12 +108,17 @@ def health():
     """Enhanced health check with CORS and system information"""
     return jsonify({
         'status': 'healthy',
-        'message': 'TypeTutor Backend API - Clean Version',
-        'version': '3.0.0',
+        'message': 'TypeTutor Backend API - CORS Fixed',
+        'version': '3.1.0',
         'cors_enabled': True,
         'cors_info': {
-            'dynamic_origin_checking': True,
-            'supports_vercel_previews': True
+            'allowed_origins': [
+                'https://typetutor.vercel.app',
+                'https://*.vercel.app (previews)',
+                'localhost development'
+            ],
+            'request_origin': request.headers.get('Origin', 'none'),
+            'cors_working': True
         },
         'environment': os.environ.get('FLASK_ENV', 'production'),
         'timestamp': datetime.now().isoformat(),
@@ -403,10 +406,13 @@ def internal_error(error):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     
-    print("🚀 TypeTutor Backend API - Clean Version")
+    print("🚀 TypeTutor Backend API - CORS Fixed Version")
     print(f"   Port: {port}")
     print(f"   Environment: {os.environ.get('FLASK_ENV', 'production')}")
-    print(f"   CORS: Dynamic origin checking enabled")
+    print(f"   CORS: Enabled for Vercel domains + wildcards")
     print(f"   Data directory: {os.path.abspath('data')}")
+    print(f"   Allowed origins:")
+    for origin in ALLOWED_ORIGINS:
+        print(f"     - {origin}")
     
     app.run(host='0.0.0.0', port=port, debug=False)
