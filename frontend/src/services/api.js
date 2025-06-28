@@ -1,7 +1,5 @@
-// Direct API URL Fix - TypeTutor API Service
-// HARDCODED for local development - change this line
-
-const API_BASE_URL = 'http://localhost:5001/api'; // ← DIRECT FIX
+// TypeTutor API Service - Railway Production Backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://perceptive-blessing-production.up.railway.app/api';
 
 console.log('🔗 API configured for:', API_BASE_URL);
 
@@ -95,16 +93,6 @@ const apiClient = {
       console.error('Error details:', error);
       console.error('Request URL:', url);
       console.error('Request options:', requestOptions);
-      
-      // Additional debug info for common errors
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        console.error('🚨 Network Error - Possible causes:');
-        console.error('  - Backend server not running');
-        console.error('  - CORS configuration issue');
-        console.error('  - Incorrect API URL');
-        console.error('  - Firewall blocking request');
-      }
-      
       console.groupEnd();
       throw error;
     }
@@ -122,7 +110,7 @@ const apiClient = {
   }
 };
 
-// Test API connection with detailed logging
+// Test API connection
 export const checkHealth = async () => {
   try {
     console.log('🏥 Performing health check...');
@@ -135,7 +123,7 @@ export const checkHealth = async () => {
   }
 };
 
-// Enhanced PDF upload with step-by-step debugging
+// PDF upload
 export const uploadPDF = async (file, onProgress = null) => {
   try {
     console.group('📤 PDF Upload Process Started');
@@ -146,7 +134,7 @@ export const uploadPDF = async (file, onProgress = null) => {
       lastModified: new Date(file.lastModified)
     });
     
-    // Validate file before upload
+    // Validate file
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       throw new Error('File must be a PDF');
     }
@@ -167,7 +155,7 @@ export const uploadPDF = async (file, onProgress = null) => {
     
     console.log('📋 FormData created');
     
-    // Call progress callback
+    // Progress callback
     if (onProgress) {
       console.log('📈 Calling progress callback: 25%');
       onProgress({ percentage: 25, loaded: file.size * 0.25, total: file.size });
@@ -268,53 +256,12 @@ export const resetStats = async () => {
   }
 };
 
-// Connection test with detailed feedback
-const testConnection = async () => {
-  try {
-    console.log('🧪 Testing API connection...');
-    
-    const startTime = performance.now();
-    const healthData = await checkHealth();
-    const endTime = performance.now();
-    
-    console.log(`🎉 API connection successful! (${Math.round(endTime - startTime)}ms)`);
-    console.log('Health data:', healthData);
-    
-    // Check CORS configuration
-    if (healthData.cors_debug) {
-      console.log('🔍 CORS Debug Info:', healthData.cors_debug);
-      
-      if (!healthData.cors_debug.origin_allowed) {
-        console.warn('⚠️ Current origin may not be in CORS allowed list');
-      }
-    }
-    
-    window.typetutor_api_status = 'connected';
-    window.typetutor_api_health = healthData;
-    
-  } catch (error) {
-    console.group('🚨 API Connection Test Failed');
-    console.error('Connection error:', error);
-    console.error('API Base URL:', API_BASE_URL);
-    
-    // Provide troubleshooting suggestions
-    console.log('🔧 Troubleshooting suggestions:');
-    console.log('1. Check if backend server is running on the correct port');
-    console.log('2. Verify CORS configuration allows your origin');
-    console.log('3. Check for firewall or proxy blocking');
-    console.log('4. Ensure API_BASE_URL is correct');
-    
-    console.groupEnd();
-    
-    window.typetutor_api_status = 'failed';
-    window.typetutor_api_error = error.message;
-  }
-};
+// Test connection on load
+checkHealth().catch(error => {
+  console.warn('⚠️ Initial health check failed:', error.message);
+});
 
-// Run connection test immediately
-testConnection();
-
-// Export individual functions and default object
+// Export default object
 export default {
   uploadPDF,
   processText,

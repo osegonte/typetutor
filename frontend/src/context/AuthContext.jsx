@@ -8,10 +8,10 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Use production API URL
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://typetutor-production.up.railway.app/api';
+  // Use Railway production API URL
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://perceptive-blessing-production.up.railway.app/api';
 
-  console.log('🔗 AuthContext using API:', API_BASE_URL);
+  console.log('🔗 AuthContext using Railway API:', API_BASE_URL);
 
   // Initialize authentication state
   useEffect(() => {
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      console.log('🔐 Attempting login to:', `${API_BASE_URL}/auth/login`);
+      console.log('🔐 Attempting login to Railway backend:', `${API_BASE_URL}/auth/login`);
       
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -67,7 +67,8 @@ export const AuthProvider = ({ children }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        mode: 'cors', credentials: 'omit',
+        mode: 'cors', 
+        credentials: 'omit',
         body: JSON.stringify({ email, password }),
       });
 
@@ -102,7 +103,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      console.log('📝 Attempting registration to:', `${API_BASE_URL}/auth/register`);
+      console.log('📝 Attempting registration to Railway backend:', `${API_BASE_URL}/auth/register`);
       
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
@@ -110,7 +111,8 @@ export const AuthProvider = ({ children }) => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        mode: 'cors', credentials: 'omit',
+        mode: 'cors', 
+        credentials: 'omit',
         body: JSON.stringify({ email, password, display_name: displayName }),
       });
 
