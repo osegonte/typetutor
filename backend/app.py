@@ -17,58 +17,56 @@ app.config.update({
     'SUPABASE_ANON_KEY': os.environ.get('SUPABASE_ANON_KEY'),
     'STATS_FILE': 'data/user_stats.json',
     'JWT_SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
-    'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7
+    'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7,
+    'MAX_CONTENT_LENGTH': 16 * 1024 * 1024  # 16MB
 })
 
-# CORS Configuration - CLEAN SINGLE APPROACH
+# CORS Configuration - FIXED VERSION
 from flask_cors import CORS
 
-# Define allowed origins
+# Define allowed origins with PROPER localhost handling
 ALLOWED_ORIGINS = [
     "https://typetutor.vercel.app",
-    "https://typetutor-git-main-osegontes-projects.vercel.app",
-    "https://*.vercel.app",  # Allow all Vercel preview deployments
+    "https://typetutor-git-main-osegontes-projects.vercel.app", 
     "http://localhost:3000",
-    "http://localhost:5173"
+    "http://localhost:5173",  # Your Vite dev server
+    "http://127.0.0.1:5173",  # Alternative localhost
+    # Add any other development ports you might use
+    "http://localhost:5174",
+    "http://127.0.0.1:3000"
 ]
 
-# Configure CORS with proper settings
+# Configure CORS with explicit settings
 CORS(app, 
      origins=ALLOWED_ORIGINS,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "Origin"],
-     supports_credentials=True,
+     supports_credentials=False,  # Changed to False for simpler CORS
      send_wildcard=False,
-     expose_headers=["Authorization"]
+     expose_headers=["Content-Type"]
 )
 
-# Helper function to check allowed origins (including wildcard matching)
+# Helper function to check allowed origins
 def is_allowed_origin(origin):
     if not origin:
         return False
     
-    # Check exact matches
-    exact_matches = [
-        "https://typetutor.vercel.app",
-        "https://typetutor-git-main-osegontes-projects.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:5173"
-    ]
-    
-    if origin in exact_matches:
+    # Check exact matches first
+    if origin in ALLOWED_ORIGINS:
         return True
     
-    # Check Vercel preview domains (*.vercel.app)
+    # Check Vercel preview domains
     if origin.startswith("https://") and origin.endswith(".vercel.app"):
         return True
     
     return False
 
-# Handle preflight OPTIONS requests
+# Enhanced CORS handling for preflight requests
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
         origin = request.headers.get('Origin')
+        print(f"🔍 CORS Preflight - Origin: {origin}")
         
         if is_allowed_origin(origin):
             response = make_response()
@@ -76,7 +74,6 @@ def handle_preflight():
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With, Origin"
             response.headers["Access-Control-Max-Age"] = "86400"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
             
             print(f"✅ CORS preflight approved for: {origin}")
             return response
@@ -91,8 +88,6 @@ def after_request(response):
     
     if is_allowed_origin(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Expose-Headers"] = "Authorization"
         print(f"✅ CORS headers added for: {origin}")
     
     return response
@@ -102,22 +97,21 @@ os.makedirs('data', exist_ok=True)
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('logs', exist_ok=True)
 
-# Health check endpoint
+# Health check endpoint with detailed CORS info
 @app.route('/api/health')
 def health():
-    """Enhanced health check with CORS and system information"""
+    """Enhanced health check with CORS debugging info"""
+    origin = request.headers.get('Origin', 'none')
     return jsonify({
         'status': 'healthy',
         'message': 'TypeTutor Backend API - CORS Fixed',
-        'version': '3.1.0',
+        'version': '3.2.0',
         'cors_enabled': True,
-        'cors_info': {
-            'allowed_origins': [
-                'https://typetutor.vercel.app',
-                'https://*.vercel.app (previews)',
-                'localhost development'
-            ],
-            'request_origin': request.headers.get('Origin', 'none'),
+        'cors_debug': {
+            'request_origin': origin,
+            'origin_allowed': is_allowed_origin(origin),
+            'allowed_origins': ALLOWED_ORIGINS,
+            'request_method': request.method,
             'cors_working': True
         },
         'environment': os.environ.get('FLASK_ENV', 'production'),
@@ -200,7 +194,7 @@ def save_stats():
         wpm = max(0, int(data.get('wpm', 0)))
         accuracy = max(0, min(100, int(data.get('accuracy', 0))))
         
-        print(f"📊 Saving session: {wpm}wpm, {accuracy}% accuracy, {duration}s duration")
+        print(f"📊 Saving session: {wmp}wpm, {accuracy}% accuracy, {duration}s duration")
         
         # Save to file
         try:
@@ -227,7 +221,7 @@ def save_stats():
             new_session = {
                 'date': datetime.now().strftime('%Y-%m-%d'),
                 'duration': f"{duration // 60}m {duration % 60}s",
-                'wpm': wpm,
+                'wpm': wmp,
                 'accuracy': accuracy,
                 'mode': data.get('mode', 'Practice'),
                 'timestamp': datetime.now().isoformat(),
@@ -256,7 +250,7 @@ def save_stats():
                     'accuracy': accuracy,
                     'date': new_session['date']
                 }
-                print(f"🏆 New personal best: {wpm} WPM!")
+                print(f"🏆 New personal best: {wmp} WPM!")
             
             # Save to file
             os.makedirs(os.path.dirname(stats_file), exist_ok=True)
@@ -274,7 +268,7 @@ def save_stats():
             'message': 'Session saved successfully',
             'sessionId': f"session_{int(datetime.now().timestamp())}",
             'stats': {
-                'wpm': wpm,
+                'wpm': wmp,
                 'accuracy': accuracy,
                 'duration': duration
             }
@@ -325,12 +319,18 @@ def process_text():
 
 @app.route('/api/upload-pdf', methods=['POST'])
 def upload_pdf():
-    """Upload and process PDF files"""
+    """Upload and process PDF files with enhanced error handling"""
     try:
+        print(f"📄 PDF upload request received")
+        print(f"Files in request: {list(request.files.keys())}")
+        print(f"Request content type: {request.content_type}")
+        
         if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
+            return jsonify({'error': 'No file provided in request'}), 400
         
         file = request.files['file']
+        print(f"File object: {file}")
+        print(f"Filename: {file.filename}")
         
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
@@ -338,31 +338,53 @@ def upload_pdf():
         if not file.filename.lower().endswith('.pdf'):
             return jsonify({'error': 'Only PDF files are supported'}), 400
         
-        print(f"📄 PDF upload attempt: {file.filename}")
+        print(f"📄 Processing PDF upload: {file.filename}")
         
-        # Basic PDF processing (placeholder - you can enhance this)
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > app.config['MAX_CONTENT_LENGTH']:
+            return jsonify({'error': 'File too large (max 16MB)'}), 400
+        
+        print(f"File size: {file_size} bytes")
+        
+        # Try to extract text using PyPDF2
         try:
-            # Try to extract text (requires pypdf)
-            import pypdf
+            import PyPDF2
             
             # Save uploaded file temporarily
             upload_path = os.path.join('uploads', file.filename)
             os.makedirs('uploads', exist_ok=True)
             file.save(upload_path)
+            print(f"File saved to: {upload_path}")
             
             # Extract text
             with open(upload_path, 'rb') as pdf_file:
-                pdf_reader = pypdf.PdfReader(pdf_file)
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
                 text_content = ""
                 
-                for page in pdf_reader.pages:
-                    text_content += page.extract_text() + "\n"
+                print(f"PDF pages: {len(pdf_reader.pages)}")
+                
+                for page_num, page in enumerate(pdf_reader.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_content += page_text + "\n"
+                            print(f"Extracted text from page {page_num + 1}: {len(page_text)} chars")
+                    except Exception as e:
+                        print(f"Error extracting page {page_num + 1}: {e}")
             
-            # Clean up
-            os.remove(upload_path)
+            # Clean up temporary file
+            try:
+                os.remove(upload_path)
+                print(f"Temporary file cleaned up: {upload_path}")
+            except:
+                pass
             
             if not text_content.strip():
-                return jsonify({'error': 'Could not extract text from PDF'}), 400
+                return jsonify({'error': 'Could not extract text from PDF. File may be image-based or encrypted.'}), 400
             
             print(f"✅ Extracted {len(text_content)} characters from PDF")
             
@@ -383,21 +405,27 @@ def upload_pdf():
             })
             
         except ImportError:
-            # pypdf not available
+            print("❌ PyPDF2 not available")
             return jsonify({
                 'success': False,
-                'error': 'PDF processing not available. Please install pypdf or use custom text instead.',
+                'error': 'PDF processing library not available. Please install PyPDF2.',
                 'fallback': True
-            })
+            }), 500
             
     except Exception as e:
         print(f"❌ Error in upload_pdf: {e}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
 
 # Error handlers
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Endpoint not found'}), 404
+
+@app.errorhandler(413)
+def file_too_large(error):
+    return jsonify({'error': 'File too large (max 16MB)'}), 413
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -409,10 +437,11 @@ if __name__ == '__main__':
     print("🚀 TypeTutor Backend API - CORS Fixed Version")
     print(f"   Port: {port}")
     print(f"   Environment: {os.environ.get('FLASK_ENV', 'production')}")
-    print(f"   CORS: Enabled for Vercel domains + wildcards")
+    print(f"   CORS: Enabled with explicit origins")
     print(f"   Data directory: {os.path.abspath('data')}")
+    print(f"   Max file size: {app.config['MAX_CONTENT_LENGTH'] / (1024*1024)}MB")
     print(f"   Allowed origins:")
     for origin in ALLOWED_ORIGINS:
         print(f"     - {origin}")
     
-    app.run(host='0.0.0.0', port=port, debug=False)# Force redeploy
+    app.run(host='0.0.0.0', port=port, debug=True)  # Enable debug for better error messages
