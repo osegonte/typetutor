@@ -9,6 +9,11 @@ import logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
+# Version and deployment tracking
+APP_VERSION = "3.4.0"
+DEPLOYMENT_TIMESTAMP = "2025-06-28T17:03:13Z"
+print(f"🚀 TypeTutor Backend v{APP_VERSION} initializing...")
+print(f"⏰ Build timestamp: {DEPLOYMENT_TIMESTAMP}")
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
@@ -572,7 +577,7 @@ def health():
     return jsonify({
         'status': 'healthy',
         'message': 'TypeTutor Backend API - Railway Production',
-        'version': '3.4.0',
+        'version': '' + APP_VERSION + '',
         'deployment': 'railway',
         'cors_enabled': True,
         'cors_debug': {
