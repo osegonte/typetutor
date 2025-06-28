@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeTutor Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 8px 16px; margin: 5px; cursor: pointer; }
+        #results { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🧪 TypeTutor Auth & Upload Test</h1>
+    
+    <div class="test info">
+        <h3>API Configuration</h3>
+        <p>API URL: <span id="api-url"></span></p>
+        <button onclick="testHealth()">Test Health</button>
+    </div>
+    
+    <div class="test">
+        <h3>Authentication Test</h3>
+        <div>
+            <input type="email" id="email" placeholder="test@example.com" value="test@example.com">
+            <input type="password" id="password" placeholder="password" value="TestPass123">
+            <input type="text" id="displayName" placeholder="Display Name" value="Test User">
+        </div>
+        <button onclick="testRegister()">Test Register</button>
+        <button onclick="testLogin()">Test Login</button>
+    </div>
+    
+    <div class="test">
+        <h3>File Upload Test</h3>
+        <input type="file" id="fileInput" accept=".pdf">
+        <button onclick="testUpload()">Test Upload</button>
+    </div>
+    
+    <div class="test">
+        <h3>Results</h3>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://perceptive-blessing-production.up.railway.app/api';
+        document.getElementById('api-url').textContent = API_URL;
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+        
+        async function testHealth() {
+            try {
+                log('Testing health endpoint...');
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                log(`✅ Health check: ${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                log(`❌ Health check failed: ${error.message}`);
+            }
+        }
+        
+        async function testRegister() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const displayName = document.getElementById('displayName').value;
+            
+            try {
+                log(`Testing registration: ${email}`);
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, display_name: displayName })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Registration successful: ${JSON.stringify(data)}`);
+                } else {
+                    log(`⚠️ Registration response: ${response.status} - ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                log(`❌ Registration failed: ${error.message}`);
+            }
+        }
+        
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log(`Testing login: ${email}`);
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Login successful: ${JSON.stringify(data)}`);
+                } else {
+                    log(`⚠️ Login response: ${response.status} - ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                log(`❌ Login failed: ${error.message}`);
+            }
+        }
+        
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('❌ Please select a file first');
+                return;
+            }
+            
+            try {
+                log(`Testing upload: ${file.name} (${file.size} bytes)`);
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch(`${API_URL}/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Upload successful: ${JSON.stringify(data)}`);
+                } else {
+                    log(`⚠️ Upload response: ${response.status} - ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                log(`❌ Upload failed: ${error.message}`);
+            }
+        }
+        
+        // Auto-test health on load
+        window.onload = () => {
+            log('🚀 TypeTutor Auth Test Ready');
+            testHealth();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .test { background: white; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="test">
+        <h1>🧪 TypeTutor Minimal Test</h1>
+        <p class="success">✅ HTML loading works</p>
+        <p class="success">✅ CSS styling works</p>
+        <p id="js-status" class="error">❌ JavaScript not loaded</p>
+        <div id="root">This is the root div</div>
+    </div>
+    
+    <script>
+        console.log('✅ Basic JavaScript working');
+        document.getElementById('js-status').textContent = '✅ JavaScript working';
+        document.getElementById('js-status').className = 'success';
+        
+        // Test if we can manipulate the root div
+        const root = document.getElementById('root');
+        if (root) {
+            root.innerHTML = '<p style="color: blue;">✅ Root div manipulation working</p>';
+            console.log('✅ Root div found and modified');
+        } else {
+            console.error('❌ Root div not found');
+        }
+    </script>
+</body>
+</html>

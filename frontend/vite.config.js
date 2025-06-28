@@ -42,15 +42,11 @@ export default defineConfig(({ command, mode }) => {
         compress: {
           drop_console: true,
           drop_debugger: true,
-          pure_funcs: ['console.log', 'console.info', 'console.debug'],
-        },
+          pure_funcs: ['console.log', 'console.info', 'console.debug']},
         mangle: {
-          safari10: true,
-        },
+          safari10: true},
         format: {
-          comments: false,
-        },
-      } : {},
+          comments: false}} : {},
       
       rollupOptions: {
         output: {
@@ -62,11 +58,8 @@ export default defineConfig(({ command, mode }) => {
             // UI libraries
             'ui-vendor': ['lucide-react'],
             
-            // Only include lodash chunk if it's actually used heavily
             ...(isProduction && {
-              'utils-vendor': ['lodash'],
-            }),
-          },
+            })},
           
           // Optimize chunk file names
           chunkFileNames: (chunkInfo) => {
@@ -83,9 +76,7 @@ export default defineConfig(({ command, mode }) => {
               return `css/[name]-[hash][extname]`;
             }
             return `assets/[name]-[hash][extname]`;
-          },
-        },
-      },
+          }}},
 
       // Optimize chunk size warnings
       chunkSizeWarningLimit: 800,
@@ -100,8 +91,7 @@ export default defineConfig(({ command, mode }) => {
     css: {
       postcss: './postcss.config.js',
       // Enable CSS source maps only in development
-      devSourcemap: isDevelopment,
-    },
+      devSourcemap: isDevelopment},
 
     optimizeDeps: {
       include: [
@@ -118,20 +108,15 @@ export default defineConfig(({ command, mode }) => {
       
       // Remove debug code in production
       ...(isProduction && {
-        'process.env.NODE_ENV': JSON.stringify('production'),
-      }),
-    },
+        'process.env.NODE_ENV': JSON.stringify('production')})},
 
     // Performance optimizations
     esbuild: {
       // Remove console.log in production
-      drop: isProduction ? ['console', 'debugger'] : [],
-    },
+      drop: isProduction ? ['console', 'debugger'] : []},
 
     // Preview configuration for local testing
     preview: {
       port: 4173,
-      host: true,
-    },
-  };
+      host: true}};
 });
