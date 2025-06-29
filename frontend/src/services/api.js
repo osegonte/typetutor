@@ -1,5 +1,5 @@
 // TypeTutor API Service - Railway Production Backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://perceptive-blessing-production.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 console.log('🔗 API configured for:', API_BASE_URL);
 

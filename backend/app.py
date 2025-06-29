@@ -1,879 +1,1095 @@
+#!/usr/bin/env python3
+# backend/app.py - Complete TypeTutor Flask Application v3.4.0
 import os
 import sys
-from flask import Flask, jsonify, request, make_response
-from datetime import datetime
-from functools import wraps
-import logging
+import json
+import hashlib
+import traceback
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
 
-# Add current directory to path
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS, cross_origin
+from dotenv import load_dotenv
+import jwt
+import bcrypt
+
+# Load environment variables
+load_dotenv()
+
+# Add current directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-# Version and deployment tracking
-APP_VERSION = "3.4.0"
-DEPLOYMENT_TIMESTAMP = "2025-06-28T17:03:13Z"
-print(f"🚀 TypeTutor Backend v{APP_VERSION} initializing...")
-print(f"⏰ Build timestamp: {DEPLOYMENT_TIMESTAMP}")
-app = Flask(__name__)
-logger = logging.getLogger(__name__)
+print(f"🚀 TypeTutor Backend v3.4.0 starting...")
+print(f"📁 Working directory: {current_dir}")
+print(f"🌍 Environment: {os.environ.get('FLASK_ENV', 'development')}")
 
-# Configuration
-app.config.update({
-    'SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
-    'USE_DATABASE': os.environ.get('USE_DATABASE', 'true').lower() == 'true',
-    'SUPABASE_URL': os.environ.get('SUPABASE_URL'),
-    'SUPABASE_ANON_KEY': os.environ.get('SUPABASE_ANON_KEY'),
-    'STATS_FILE': 'data/user_stats.json',
-    'JWT_SECRET_KEY': os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
-    'JWT_ACCESS_TOKEN_EXPIRES_DAYS': 7,
-    'MAX_CONTENT_LENGTH': 16 * 1024 * 1024  # 16MB
-})
-
-# CORS Configuration for Railway deployment
-from flask_cors import CORS
-
-# Railway-optimized CORS settings
-ALLOWED_ORIGINS = [
-    "https://typetutor.vercel.app",
-    "https://typetutor-git-main-osegontes-projects.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:3000"
-]
-
-# Configure CORS
-CORS(app, 
-     origins=ALLOWED_ORIGINS,
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With", "Origin"],
-     supports_credentials=False,
-     send_wildcard=False,
-     expose_headers=["Content-Type"]
-)
-
-def is_allowed_origin(origin):
-    if not origin:
-        return False
-    if origin in ALLOWED_ORIGINS:
-        return True
-    if origin.startswith("https://") and origin.endswith(".vercel.app"):
-        return True
-    return False
-
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        origin = request.headers.get('Origin')
-        if is_allowed_origin(origin):
+def create_app():
+    """Create and configure the Flask application"""
+    app = Flask(__name__)
+    
+    # Configuration
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16777216))  # 16MB
+    app.config['USE_DATABASE'] = os.environ.get('USE_DATABASE', 'false').lower() == 'true'
+    
+    # Environment detection
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+    is_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT'))
+    
+    print(f"🔧 Configuration:")
+    print(f"   Production: {is_production}")
+    print(f"   Railway: {is_railway}")
+    print(f"   Database: {app.config['USE_DATABASE']}")
+    print(f"   Max upload: {app.config['MAX_CONTENT_LENGTH']} bytes")
+    
+    # ===========================
+    # ENHANCED CORS CONFIGURATION
+    # ===========================
+    
+    # Define allowed origins based on environment
+    if is_production:
+        allowed_origins = [
+            "https://*.vercel.app",
+            "https://*.netlify.app", 
+            "https://*.github.io",
+            "https://typetutor.vercel.app",
+            "https://typetutor-frontend.vercel.app",
+            # Add your specific frontend domain here
+        ]
+        print(f"🔒 Production CORS: {allowed_origins}")
+    else:
+        allowed_origins = [
+            "http://localhost:5173",    # Vite dev
+            "http://localhost:4173",    # Vite preview
+            "http://localhost:3000",    # Alternative dev
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:4173",
+        ]
+        print(f"🔓 Development CORS: {allowed_origins}")
+    
+    # Configure CORS with comprehensive settings
+    CORS(app, 
+         origins=allowed_origins + (["*"] if not is_production else []),
+         allow_headers=[
+             "Content-Type", 
+             "Authorization", 
+             "Accept",
+             "Origin",
+             "X-Requested-With",
+             "Access-Control-Allow-Origin",
+             "Access-Control-Allow-Headers",
+             "Access-Control-Allow-Methods"
+         ],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         supports_credentials=False,
+         send_wildcard=not is_production,
+         vary_header=True
+    )
+    
+    # Global preflight handler
+    @app.before_request
+    def handle_preflight():
+        """Handle CORS preflight requests globally"""
+        if request.method == "OPTIONS":
+            origin = request.headers.get('Origin', 'unknown')
+            print(f"🔄 CORS Preflight from: {origin}")
+            
             response = make_response()
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With, Origin"
-            response.headers["Access-Control-Max-Age"] = "86400"
+            response.headers["Access-Control-Allow-Origin"] = "*" if not is_production else origin
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,Accept,Origin,X-Requested-With"
+            response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+            response.headers["Access-Control-Max-Age"] = "86400"  # 24 hours
+            response.headers["Vary"] = "Origin"
+            
+            print(f"✅ CORS Preflight response sent to {origin}")
             return response
-        else:
-            return make_response("Origin not allowed", 403)
-
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    if is_allowed_origin(origin):
-        response.headers["Access-Control-Allow-Origin"] = origin
-    return response
-
-# Create directories
-os.makedirs('data', exist_ok=True)
-os.makedirs('uploads', exist_ok=True)
-os.makedirs('logs', exist_ok=True)
-
-# ==================== EMBEDDED AUTH SERVICE ====================
-
-import jwt
-import bcrypt
-import uuid
-import re
-import requests
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Union
-
-class AuthService:
-    """Embedded authentication service"""
     
-    def __init__(self, secret_key: str, supabase_url: str = None, supabase_key: str = None):
-        self.secret_key = secret_key
-        self.supabase_url = supabase_url
-        self.supabase_key = supabase_key
+    # Global CORS headers for all responses
+    @app.after_request
+    def after_request(response):
+        """Add CORS headers to all responses"""
+        origin = request.headers.get('Origin')
         
-        if self.supabase_url and self.supabase_key:
-            self.headers = {
-                'apikey': self.supabase_key,
-                'Authorization': f'Bearer {self.supabase_key}',
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation'
-            }
-    
-    def hash_password(self, password: str) -> str:
-        try:
-            salt = bcrypt.gensalt()
-            hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-            return hashed.decode('utf-8')
-        except Exception as e:
-            logger.error(f"Error hashing password: {e}")
-            raise ValueError("Failed to hash password")
-    
-    def verify_password(self, password: str, hashed: str) -> bool:
-        try:
-            return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-        except Exception as e:
-            logger.error(f"Error verifying password: {e}")
-            return False
-    
-    def generate_token(self, user_id: str, email: str, expires_in_days: int = 7) -> str:
-        try:
-            payload = {
-                'user_id': user_id,
-                'email': email,
-                'iat': datetime.utcnow(),
-                'exp': datetime.utcnow() + timedelta(days=expires_in_days),
-                'iss': 'typetutor-backend'
-            }
-            token = jwt.encode(payload, self.secret_key, algorithm='HS256')
-            return token
-        except Exception as e:
-            logger.error(f"Error generating token: {e}")
-            raise ValueError("Failed to generate token")
-    
-    def verify_token(self, token: str) -> Optional[Dict]:
-        try:
-            if token.startswith('Bearer '):
-                token = token[7:]
-            
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            
-            if datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
-                return None
-            
-            return payload
-            
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            return None
-        except Exception as e:
-            logger.error(f"Error verifying token: {e}")
-            return None
-    
-    def validate_email(self, email: str) -> bool:
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return re.match(pattern, email) is not None
-    
-    def validate_password(self, password: str) -> Dict[str, Union[bool, list]]:
-        errors = []
+        if origin:
+            if not is_production or any(origin.endswith(allowed.replace('*', '')) for allowed in allowed_origins if '*' in allowed):
+                response.headers["Access-Control-Allow-Origin"] = "*" if not is_production else origin
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,Accept,Origin,X-Requested-With"
+                response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+                response.headers["Access-Control-Allow-Credentials"] = "false"
+                response.headers["Vary"] = "Origin"
         
-        if len(password) < 8:
-            errors.append("Password must be at least 8 characters long")
-        if not re.search(r'[A-Z]', password):
-            errors.append("Password must contain at least one uppercase letter")
-        if not re.search(r'[a-z]', password):
-            errors.append("Password must contain at least one lowercase letter")
-        if not re.search(r'\d', password):
-            errors.append("Password must contain at least one number")
-        
-        return {'valid': len(errors) == 0, 'errors': errors}
+        return response
     
-    def create_user(self, email: str, password: str, display_name: str = None) -> Dict:
+    # =====================
+    # DATABASE CONFIGURATION
+    # =====================
+    
+    database_client = None
+    if app.config['USE_DATABASE']:
         try:
-            if not self.validate_email(email):
-                return {'success': False, 'error': 'Invalid email format'}
+            from database.supabase_client import get_supabase, test_supabase_connection
+            database_client = get_supabase()
             
-            password_validation = self.validate_password(password)
-            if not password_validation['valid']:
-                return {
-                    'success': False, 
-                    'error': 'Password validation failed',
-                    'details': password_validation['errors']
-                }
-            
-            existing_user = self.get_user_by_email(email)
-            if existing_user:
-                return {'success': False, 'error': 'User with this email already exists'}
-            
-            user_id = str(uuid.uuid4())
-            password_hash = self.hash_password(password)
-            
-            user_data = {
-                'id': user_id,
-                'username': email.split('@')[0],
-                'email': email.lower(),
-                'display_name': display_name or email.split('@')[0],
-                'password_hash': password_hash,
-                'is_active': True,
-                'is_anonymous': False,
-                'preferences': {},
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat(),
-            }
-            
-            if not self.supabase_url or not self.supabase_key:
-                return {
-                    'success': False,
-                    'error': 'Supabase not configured',
-                    'details': ['SUPABASE_URL and SUPABASE_ANON_KEY must be set']
-                }
-            
-            response = requests.post(
-                f"{self.supabase_url}/rest/v1/users",
-                headers=self.headers,
-                json=user_data,
-                timeout=10
-            )
-            
-            if response.status_code in [200, 201]:
-                result_data = response.json()
-                if isinstance(result_data, list) and len(result_data) > 0:
-                    user = result_data[0]
-                else:
-                    user = result_data
-                
-                token = self.generate_token(user['id'], user['email'])
-                
-                return {
-                    'success': True,
-                    'user': {
-                        'id': user['id'],
-                        'email': user['email'],
-                        'display_name': user.get('display_name'),
-                        'username': user.get('username')
-                    },
-                    'token': token,
-                    'message': 'User created successfully'
-                }
+            # Test connection
+            test_result = test_supabase_connection()
+            if test_result['success']:
+                print("✅ Database connected successfully")
             else:
-                try:
-                    error_json = response.json()
-                    error_message = error_json.get('message', response.text)
-                except:
-                    error_message = response.text
-                
-                return {
-                    'success': False,
-                    'error': 'Failed to create user in database',
-                    'details': [error_message]
-                }
-                
+                print(f"⚠️ Database connection warning: {test_result['message']}")
+        except ImportError:
+            print("⚠️ Database modules not found - falling back to JSON storage")
+            app.config['USE_DATABASE'] = False
         except Exception as e:
-            logger.error(f"Error in create_user: {e}")
-            return {'success': False, 'error': 'Internal error during user creation'}
+            print(f"⚠️ Database connection failed: {e}")
+            app.config['USE_DATABASE'] = False
     
-    def authenticate_user(self, email: str, password: str) -> Dict:
-        try:
-            if not self.validate_email(email):
-                return {'success': False, 'error': 'Invalid email format'}
-            
-            user = self.get_user_by_email(email.lower())
-            if not user:
-                return {'success': False, 'error': 'Invalid email or password'}
-            
-            if not user.get('password_hash'):
-                return {'success': False, 'error': 'Account not properly configured'}
-            
-            if not self.verify_password(password, user['password_hash']):
-                return {'success': False, 'error': 'Invalid email or password'}
-            
-            if not user.get('is_active', True):
-                return {'success': False, 'error': 'Account is deactivated'}
-            
-            self.update_last_login(user['id'])
-            
-            token = self.generate_token(user['id'], user['email'])
-            
-            return {
-                'success': True,
-                'user': {
-                    'id': user['id'],
-                    'email': user['email'],
-                    'display_name': user.get('display_name'),
-                    'username': user.get('username')
-                },
-                'token': token,
-                'message': 'Login successful'
+    # Fallback storage setup
+    if not app.config['USE_DATABASE']:
+        print("📁 Using JSON file storage")
+        data_dir = os.path.join(current_dir, 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Initialize stats file if it doesn't exist
+        stats_file = os.path.join(data_dir, 'user_stats.json')
+        if not os.path.exists(stats_file):
+            default_stats = {
+                "totalSessions": 0,
+                "averageWpm": 0,
+                "accuracy": 0,
+                "practiceMinutes": 0,
+                "personalBest": {"wpm": 0, "accuracy": 0},
+                "currentStreak": 0,
+                "lastSessionDate": None,
+                "recentSessions": []
             }
-            
-        except Exception as e:
-            logger.error(f"Error in authenticate_user: {e}")
-            return {'success': False, 'error': 'Internal error during authentication'}
+            with open(stats_file, 'w') as f:
+                json.dump(default_stats, f, indent=2)
+            print(f"📋 Created default stats file: {stats_file}")
     
-    def get_user_by_email(self, email: str) -> Optional[Dict]:
-        if not self.supabase_url or not self.supabase_key:
-            return None
-        
-        try:
-            response = requests.get(
-                f"{self.supabase_url}/rest/v1/users?email=eq.{email.lower()}",
-                headers=self.headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data[0] if data else None
-            else:
-                logger.error(f"Error fetching user: {response.status_code} - {response.text}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error getting user by email: {e}")
-            return None
+    # =====================
+    # UTILITY FUNCTIONS
+    # =====================
     
-    def get_user_by_id(self, user_id: str) -> Optional[Dict]:
-        if not self.supabase_url or not self.supabase_key:
-            return None
-        
-        try:
-            response = requests.get(
-                f"{self.supabase_url}/rest/v1/users?id=eq.{user_id}",
-                headers=self.headers,
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data[0] if data else None
-            else:
-                logger.error(f"Error fetching user by ID: {response.status_code} - {response.text}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error getting user by ID: {e}")
-            return None
+    def get_file_hash(file_content: bytes) -> str:
+        """Generate SHA-256 hash of file content"""
+        return hashlib.sha256(file_content).hexdigest()
     
-    def update_last_login(self, user_id: str) -> bool:
-        if not self.supabase_url or not self.supabase_key:
-            return False
+    def validate_session_data(data: Dict[str, Any]) -> tuple[bool, str]:
+        """Validate typing session data"""
+        required_fields = ['wpm', 'accuracy', 'duration']
         
-        try:
-            update_data = {
-                'last_login': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }
-            
-            response = requests.patch(
-                f"{self.supabase_url}/rest/v1/users?id=eq.{user_id}",
-                headers=self.headers,
-                json=update_data,
-                timeout=10
-            )
-            
-            return response.status_code in [200, 204]
-            
-        except Exception as e:
-            logger.error(f"Error updating last login: {e}")
-            return False
-    
-    def get_user_profile(self, user_id: str) -> Dict:
-        try:
-            user = self.get_user_by_id(user_id)
-            if not user:
-                return {'success': False, 'error': 'User not found'}
-            
-            profile = {
-                'id': user['id'],
-                'email': user['email'],
-                'display_name': user.get('display_name'),
-                'username': user.get('username'),
-                'preferences': user.get('preferences', {}),
-                'created_at': user.get('created_at'),
-                'last_login': user.get('last_login'),
-                'is_active': user.get('is_active', True)
-            }
-            
-            return {'success': True, 'profile': profile}
-            
-        except Exception as e:
-            logger.error(f"Error getting user profile: {e}")
-            return {'success': False, 'error': 'Failed to get user profile'}
-
-# Initialize auth service
-def get_auth_service() -> AuthService:
-    secret_key = app.config.get('SECRET_KEY', 'dev-secret-key')
-    supabase_url = app.config.get('SUPABASE_URL')
-    supabase_key = app.config.get('SUPABASE_ANON_KEY')
-    return AuthService(secret_key, supabase_url, supabase_key)
-
-# Auth decorator
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            try:
-                token = auth_header.split(' ')[1]
-            except IndexError:
-                return jsonify({'error': 'Invalid authorization header format'}), 401
-        
-        if not token:
-            return jsonify({'error': 'Token is missing'}), 401
-        
-        try:
-            auth_service = get_auth_service()
-            current_user = auth_service.verify_token(token)
-            
-            if current_user is None:
-                return jsonify({'error': 'Token is invalid or expired'}), 401
-            
-            request.current_user = current_user
-            
-        except Exception as e:
-            logger.error(f"Token verification error: {e}")
-            return jsonify({'error': 'Token verification failed'}), 401
-        
-        return f(*args, **kwargs)
-    
-    return decorated
-
-# ==================== AUTH ROUTES ====================
-
-@app.route('/api/auth/register', methods=['POST'])
-def register():
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        display_name = data.get('display_name', '').strip()
-        
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
-        
-        if not password:
-            return jsonify({'error': 'Password is required'}), 400
-        
-        auth_service = get_auth_service()
-        result = auth_service.create_user(email, password, display_name)
-        
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'message': result['message'],
-                'user': result['user'],
-                'token': result['token']
-            }), 201
-        else:
-            status_code = 409 if 'already exists' in result['error'] else 400
-            return jsonify({
-                'error': result['error'],
-                'details': result.get('details', [])
-            }), status_code
-            
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        return jsonify({'error': 'Registration failed'}), 500
-
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        
-        if not email or not password:
-            return jsonify({'error': 'Email and password are required'}), 400
-        
-        auth_service = get_auth_service()
-        result = auth_service.authenticate_user(email, password)
-        
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'message': result['message'],
-                'user': result['user'],
-                'token': result['token']
-            }), 200
-        else:
-            return jsonify({'error': result['error']}), 401
-            
-    except Exception as e:
-        logger.error(f"Login error: {e}")
-        return jsonify({'error': 'Login failed'}), 500
-
-@app.route('/api/auth/profile', methods=['GET'])
-@token_required
-def get_profile():
-    try:
-        user_id = request.current_user['user_id']
-        
-        auth_service = get_auth_service()
-        result = auth_service.get_user_profile(user_id)
-        
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'profile': result['profile']
-            }), 200
-        else:
-            return jsonify({'error': result['error']}), 404
-            
-    except Exception as e:
-        logger.error(f"Profile fetch error: {e}")
-        return jsonify({'error': 'Failed to fetch profile'}), 500
-
-@app.route('/api/auth/verify', methods=['POST'])
-def verify_token():
-    try:
-        data = request.get_json()
-        
-        if not data or 'token' not in data:
-            return jsonify({'error': 'Token is required'}), 400
-        
-        token = data['token']
-        
-        auth_service = get_auth_service()
-        payload = auth_service.verify_token(token)
-        
-        if payload:
-            return jsonify({
-                'valid': True,
-                'user_id': payload['user_id'],
-                'email': payload['email'],
-                'expires_at': payload['exp']
-            }), 200
-        else:
-            return jsonify({'valid': False}), 401
-            
-    except Exception as e:
-        logger.error(f"Token verification error: {e}")
-        return jsonify({'error': 'Token verification failed'}), 500
-
-@app.route('/api/auth/logout', methods=['POST'])
-@token_required
-def logout():
-    return jsonify({
-        'success': True,
-        'message': 'Logged out successfully'
-    }), 200
-
-print("✅ Auth routes registered:")
-print("   - POST /api/auth/register")
-print("   - POST /api/auth/login")
-print("   - GET /api/auth/profile")
-print("   - POST /api/auth/verify")
-print("   - POST /api/auth/logout")
-
-# ==================== OTHER ROUTES ====================
-
-# Health check endpoint
-@app.route('/api/health')
-def health():
-    """Enhanced health check with Railway deployment info"""
-    origin = request.headers.get('Origin', 'none')
-    return jsonify({
-        'status': 'healthy',
-        'message': 'TypeTutor Backend API - Railway Production',
-        'version': '' + APP_VERSION + '',
-        'deployment': 'railway',
-        'cors_enabled': True,
-        'cors_debug': {
-            'request_origin': origin,
-            'origin_allowed': is_allowed_origin(origin),
-            'allowed_origins': ALLOWED_ORIGINS[:3],
-            'request_method': request.method,
-            'cors_working': True
-        },
-        'environment': os.environ.get('FLASK_ENV', 'production'),
-        'timestamp': datetime.now().isoformat(),
-        'auth_available': True,  # Now always true since auth is embedded
-        'database_configured': bool(app.config.get('SUPABASE_URL')),
-        'endpoints': {
-            'auth': {
-                'register': '/api/auth/register',
-                'login': '/api/auth/login',
-                'profile': '/api/auth/profile',
-                'verify': '/api/auth/verify',
-                'logout': '/api/auth/logout'
-            },
-            'api': {
-                'health': '/api/health',
-                'stats': '/api/stats',
-                'save_stats': '/api/save-stats',
-                'process_text': '/api/process-text',
-                'upload_pdf': '/api/upload-pdf'
-            }
-        }
-    })
-
-# Stats endpoints
-@app.route('/api/stats')
-def get_stats():
-    """Get user statistics with robust error handling"""
-    try:
-        default_stats = {
-            'averageWpm': 0,
-            'accuracy': 0,
-            'practiceMinutes': 0,
-            'currentStreak': 0,
-            'totalSessions': 0,
-            'recentSessions': [],
-            'personalBest': {'wpm': 0, 'accuracy': 0, 'date': None},
-            'source': 'default'
-        }
-        
-        try:
-            import json
-            stats_file = app.config['STATS_FILE']
-            if os.path.exists(stats_file):
-                with open(stats_file, 'r') as f:
-                    stored_stats = json.load(f)
-                    default_stats.update(stored_stats)
-                    default_stats['source'] = 'file'
-        except Exception as e:
-            print(f"⚠️ Error loading stats file: {e}")
-        
-        return jsonify(default_stats)
-    except Exception as e:
-        print(f"❌ Error in get_stats: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/save-stats', methods=['POST'])
-def save_stats():
-    """Save user statistics with enhanced validation"""
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        required_fields = ['wmp', 'accuracy', 'duration']
         for field in required_fields:
             if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+                return False, f"Missing required field: {field}"
+            
+            try:
+                value = float(data[field])
+                if value < 0:
+                    return False, f"Field {field} cannot be negative"
+                if field == 'accuracy' and value > 100:
+                    return False, "Accuracy cannot exceed 100%"
+            except (ValueError, TypeError):
+                return False, f"Field {field} must be a number"
         
-        duration = data.get('duration', 1)
-        if duration <= 0 or not isinstance(duration, (int, float)) or duration != duration:
-            duration = 1
+        return True, "Valid"
+    
+    # =====================
+    # CORE API ROUTES
+    # =====================
+    
+    @app.route('/api/health', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def health_check():
+        """Enhanced health check with system information"""
+        origin = request.headers.get('Origin', 'Direct')
+        method = request.method
         
-        data['duration'] = max(int(duration), 1)
-        wpm = max(0, int(data.get('wpm', 0)))
-        accuracy = max(0, min(100, int(data.get('accuracy', 0))))
+        health_data = {
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'version': '3.4.0',
+            'environment': 'production' if is_production else 'development',
+            'database': 'connected' if app.config['USE_DATABASE'] else 'json_fallback',
+            'uptime': 'running',
+            'cors_debug': {
+                'method': method,
+                'origin': origin,
+                'allowed_origins': allowed_origins,
+                'is_preflight': method == 'OPTIONS',
+                'headers_received': dict(request.headers),
+                'railway_env': is_railway
+            }
+        }
+        
+        print(f"🏥 Health check: {origin} → {method}")
+        return jsonify(health_data)
+    
+    @app.route('/api/db-health', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def database_health():
+        """Database-specific health check"""
+        if not app.config['USE_DATABASE']:
+            return jsonify({
+                'status': 'json_mode',
+                'database': 'file_storage',
+                'message': 'Using JSON file storage',
+                'timestamp': datetime.now().isoformat()
+            })
         
         try:
-            import json
-            stats_file = app.config['STATS_FILE']
+            from database.supabase_client import test_supabase_connection
+            result = test_supabase_connection()
             
-            stats = {
-                'recentSessions': [], 
-                'totalSessions': 0, 
-                'averageWpm': 0, 
-                'accuracy': 0,
-                'practiceMinutes': 0,
-                'currentStreak': 0,
-                'personalBest': {'wpm': 0, 'accuracy': 0, 'date': None}
+            return jsonify({
+                'status': 'healthy' if result['success'] else 'error',
+                'database': 'supabase',
+                'connection': result,
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'database': 'supabase',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
+    
+    # =====================
+    # PDF UPLOAD & PROCESSING
+    # =====================
+    
+    @app.route('/api/upload-pdf', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def upload_pdf():
+        """Handle PDF file uploads"""
+        try:
+            print(f"📤 PDF upload request from: {request.headers.get('Origin', 'unknown')}")
+            
+            if 'file' not in request.files:
+                return jsonify({'success': False, 'error': 'No file provided'}), 400
+            
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({'success': False, 'error': 'No file selected'}), 400
+            
+            if not file.filename.lower().endswith('.pdf'):
+                return jsonify({'success': False, 'error': 'File must be a PDF'}), 400
+            
+            # Read file content
+            file_content = file.read()
+            file_size = len(file_content)
+            
+            print(f"📋 File info: {file.filename} ({file_size} bytes)")
+            
+            if file_size == 0:
+                return jsonify({'success': False, 'error': 'File is empty'}), 400
+            
+            if file_size > app.config['MAX_CONTENT_LENGTH']:
+                return jsonify({'success': False, 'error': 'File too large (max 16MB)'}), 400
+            
+            # Try to extract text from PDF
+            try:
+                import PyPDF2
+                import io
+                
+                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+                extracted_text = ""
+                
+                for page_num, page in enumerate(pdf_reader.pages):
+                    try:
+                        text = page.extract_text()
+                        if text.strip():
+                            extracted_text += text + "\n\n"
+                    except Exception as e:
+                        print(f"⚠️ Error extracting page {page_num}: {e}")
+                        continue
+                
+                if not extracted_text.strip():
+                    return jsonify({
+                        'success': False, 
+                        'error': 'No text could be extracted from PDF'
+                    }), 400
+                
+                # Process into study items
+                items = []
+                paragraphs = [p.strip() for p in extracted_text.split('\n\n') if p.strip()]
+                
+                for i, paragraph in enumerate(paragraphs[:10]):  # Limit to 10 items
+                    if len(paragraph) > 50:  # Only include substantial paragraphs
+                        items.append({
+                            'id': f'pdf_item_{i+1}',
+                            'type': 'paragraph',
+                            'content': paragraph,
+                            'length': len(paragraph),
+                            'estimated_wpm_time': len(paragraph) // 5 / 40  # Estimate for 40 WPM
+                        })
+                
+                if not items:
+                    return jsonify({
+                        'success': False,
+                        'error': 'No suitable text content found for typing practice'
+                    }), 400
+                
+                file_hash = get_file_hash(file_content)
+                
+                result = {
+                    'success': True,
+                    'filename': file.filename,
+                    'file_size': file_size,
+                    'file_hash': file_hash,
+                    'pages_processed': len(pdf_reader.pages),
+                    'items_extracted': len(items),
+                    'items': items,
+                    'total_characters': sum(len(item['content']) for item in items),
+                    'processing_time': datetime.now().isoformat()
+                }
+                
+                print(f"✅ PDF processed: {len(items)} items extracted")
+                return jsonify(result)
+                
+            except ImportError:
+                return jsonify({
+                    'success': False,
+                    'error': 'PDF processing not available - PyPDF2 not installed'
+                }), 500
+            except Exception as e:
+                print(f"❌ PDF processing error: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Error processing PDF: {str(e)}'
+                }), 500
+                
+        except Exception as e:
+            print(f"❌ Upload error: {e}")
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': f'Upload failed: {str(e)}'
+            }), 500
+    
+    @app.route('/api/process-text', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def process_text():
+        """Process custom text for typing practice"""
+        try:
+            data = request.get_json()
+            if not data or 'text' not in data:
+                return jsonify({'success': False, 'error': 'No text provided'}), 400
+            
+            text = data['text'].strip()
+            if not text:
+                return jsonify({'success': False, 'error': 'Text is empty'}), 400
+            
+            if len(text) < 10:
+                return jsonify({'success': False, 'error': 'Text too short (minimum 10 characters)'}), 400
+            
+            # Split into manageable chunks/paragraphs
+            paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+            
+            if not paragraphs:
+                paragraphs = [text]  # Use the whole text if no paragraphs found
+            
+            items = []
+            for i, paragraph in enumerate(paragraphs):
+                if len(paragraph) > 20:  # Only include substantial content
+                    items.append({
+                        'id': f'text_item_{i+1}',
+                        'type': 'paragraph',
+                        'content': paragraph,
+                        'length': len(paragraph),
+                        'estimated_wpm_time': len(paragraph) // 5 / 40
+                    })
+            
+            result = {
+                'success': True,
+                'items_created': len(items),
+                'items': items,
+                'total_characters': len(text),
+                'processing_time': datetime.now().isoformat()
             }
+            
+            print(f"✅ Text processed: {len(items)} items created")
+            return jsonify(result)
+            
+        except Exception as e:
+            print(f"❌ Text processing error: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Processing failed: {str(e)}'
+            }), 500
+    
+    # =====================
+    # STATISTICS MANAGEMENT
+    # =====================
+    
+    @app.route('/api/stats', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_user_stats():
+        """Get user statistics"""
+        try:
+            if app.config['USE_DATABASE']:
+                # Database implementation
+                try:
+                    # Get anonymous user stats
+                    stats_result = database_client.table('user_statistics').select('*').eq('user_id', 'anonymous').execute()
+                    
+                    if stats_result.data:
+                        stats = stats_result.data[0]
+                        return jsonify({
+                            'averageWpm': stats.get('average_wpm', 0),
+                            'accuracy': stats.get('average_accuracy', 0),
+                            'practiceMinutes': stats.get('total_practice_time_minutes', 0),
+                            'currentStreak': stats.get('current_streak', 0),
+                            'totalSessions': stats.get('total_sessions', 0),
+                            'recentSessions': []  # Could implement this
+                        })
+                    else:
+                        # Return default stats
+                        return jsonify({
+                            'averageWpm': 0,
+                            'accuracy': 0,
+                            'practiceMinutes': 0,
+                            'currentStreak': 0,
+                            'totalSessions': 0,
+                            'recentSessions': []
+                        })
+                except Exception as e:
+                    print(f"⚠️ Database stats error: {e}")
+                    # Fall back to JSON
+                    pass
+            
+            # JSON file implementation
+            stats_file = os.path.join(current_dir, 'data', 'user_stats.json')
             
             if os.path.exists(stats_file):
                 with open(stats_file, 'r') as f:
                     stats = json.load(f)
+                return jsonify(stats)
+            else:
+                # Return default stats
+                default_stats = {
+                    "totalSessions": 0,
+                    "averageWpm": 0,
+                    "accuracy": 0,
+                    "practiceMinutes": 0,
+                    "personalBest": {"wpm": 0, "accuracy": 0},
+                    "currentStreak": 0,
+                    "lastSessionDate": None,
+                    "recentSessions": []
+                }
+                return jsonify(default_stats)
+                
+        except Exception as e:
+            print(f"❌ Stats retrieval error: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/save-stats', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def save_user_stats():
+        """Save typing session statistics"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
             
-            new_session = {
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'duration': f"{duration // 60}m {duration % 60}s",
-                'wpm': wpm,
-                'accuracy': accuracy,
-                'mode': data.get('mode', 'Practice'),
-                'timestamp': datetime.now().isoformat(),
-                'raw_duration': duration
-            }
+            # Validate the session data
+            is_valid, error_msg = validate_session_data(data)
+            if not is_valid:
+                return jsonify({'success': False, 'error': error_msg}), 400
             
-            stats['recentSessions'].insert(0, new_session)
-            stats['recentSessions'] = stats['recentSessions'][:10]
-            stats['totalSessions'] = stats.get('totalSessions', 0) + 1
-            stats['lastSessionDate'] = new_session['date']
-            stats['practiceMinutes'] = stats.get('practiceMinutes', 0) + (duration / 60)
+            print(f"💾 Saving session: {data.get('wpm')}WPM, {data.get('accuracy')}%, {data.get('duration')}s")
             
-            sessions = stats['recentSessions']
-            if sessions:
-                stats['averageWpm'] = sum(s['wpm'] for s in sessions) // len(sessions)
-                stats['accuracy'] = sum(s['accuracy'] for s in sessions) // len(sessions)
+            if app.config['USE_DATABASE']:
+                # Database implementation
+                try:
+                    # Save to typing_sessions table
+                    session_data = {
+                        'user_id': 'anonymous',  # For now, using anonymous
+                        'session_type': data.get('mode', 'practice'),
+                        'content_type': data.get('itemType', 'custom').lower(),
+                        'wpm': int(float(data['wpm'])),
+                        'accuracy': int(float(data['accuracy'])),
+                        'duration_seconds': float(data['duration']),
+                        'characters_typed': data.get('totalCharacters', 0),
+                        'errors_count': data.get('errors', 0),
+                        'session_data': {
+                            'timestamp': data.get('timestamp', datetime.now().isoformat()),
+                            'completedAt': data.get('completedAt', datetime.now().isoformat())
+                        }
+                    }
+                    
+                    result = database_client.table('typing_sessions').insert(session_data).execute()
+                    
+                    if result.data:
+                        print("✅ Session saved to database")
+                        return jsonify({'success': True, 'message': 'Session saved to database'})
+                    else:
+                        raise Exception("Failed to save to database")
+                        
+                except Exception as e:
+                    print(f"⚠️ Database save error: {e}, falling back to JSON")
+                    # Fall back to JSON storage
+                    pass
             
-            if wpm > stats['personalBest']['wpm']:
-                stats['personalBest'] = {
-                    'wpm': wpm,
-                    'accuracy': accuracy,
-                    'date': new_session['date']
+            # JSON file implementation
+            stats_file = os.path.join(current_dir, 'data', 'user_stats.json')
+            
+            # Load existing stats
+            if os.path.exists(stats_file):
+                with open(stats_file, 'r') as f:
+                    stats = json.load(f)
+            else:
+                stats = {
+                    "totalSessions": 0,
+                    "averageWpm": 0,
+                    "accuracy": 0,
+                    "practiceMinutes": 0,
+                    "personalBest": {"wpm": 0, "accuracy": 0},
+                    "currentStreak": 0,
+                    "lastSessionDate": None,
+                    "recentSessions": []
                 }
             
-            os.makedirs(os.path.dirname(stats_file), exist_ok=True)
+            # Update stats
+            wpm = int(float(data['wpm']))
+            accuracy = int(float(data['accuracy']))
+            duration_minutes = float(data['duration']) / 60
+            
+            stats['totalSessions'] += 1
+            stats['practiceMinutes'] += duration_minutes
+            
+            # Update averages
+            if stats['totalSessions'] > 0:
+                stats['averageWpm'] = round(
+                    (stats['averageWpm'] * (stats['totalSessions'] - 1) + wpm) / stats['totalSessions']
+                )
+                stats['accuracy'] = round(
+                    (stats['accuracy'] * (stats['totalSessions'] - 1) + accuracy) / stats['totalSessions']
+                )
+            else:
+                stats['averageWpm'] = wpm
+                stats['accuracy'] = accuracy
+            
+            # Update personal bests
+            if wpm > stats['personalBest']['wpm']:
+                stats['personalBest']['wpm'] = wpm
+            if accuracy > stats['personalBest']['accuracy']:
+                stats['personalBest']['accuracy'] = accuracy
+            
+            # Add to recent sessions
+            session_entry = {
+                'wpm': wpm,
+                'accuracy': accuracy,
+                'duration': f"{int(duration_minutes)}:{int((duration_minutes % 1) * 60):02d}",
+                'raw_duration': float(data['duration']),
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'timestamp': datetime.now().isoformat(),
+                'mode': data.get('mode', 'practice')
+            }
+            
+            stats['recentSessions'].insert(0, session_entry)
+            stats['recentSessions'] = stats['recentSessions'][:10]  # Keep last 10
+            
+            # Update last session date
+            stats['lastSessionDate'] = datetime.now().strftime('%Y-%m-%d')
+            
+            # Save updated stats
             with open(stats_file, 'w') as f:
                 json.dump(stats, f, indent=2)
             
+            print(f"✅ Session saved to JSON: {stats['totalSessions']} total sessions")
+            return jsonify({'success': True, 'message': 'Session saved successfully'})
+            
         except Exception as e:
-            print(f"⚠️ Error saving to file: {e}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Session saved successfully',
-            'sessionId': f"session_{int(datetime.now().timestamp())}",
-            'stats': {
-                'wpm': wpm,
-                'accuracy': accuracy,
-                'duration': duration
+            print(f"❌ Save stats error: {e}")
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/reset-stats', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def reset_user_stats():
+        """Reset all user statistics"""
+        try:
+            if app.config['USE_DATABASE']:
+                # Database implementation
+                try:
+                    # Reset user statistics
+                    database_client.table('user_statistics').delete().eq('user_id', 'anonymous').execute()
+                    database_client.table('typing_sessions').delete().eq('user_id', 'anonymous').execute()
+                    
+                    print("✅ Database stats reset")
+                    return jsonify({'success': True, 'message': 'Statistics reset successfully'})
+                except Exception as e:
+                    print(f"⚠️ Database reset error: {e}, falling back to JSON")
+                    pass
+            
+            # JSON file implementation
+            stats_file = os.path.join(current_dir, 'data', 'user_stats.json')
+            
+            default_stats = {
+                "totalSessions": 0,
+                "averageWpm": 0,
+                "accuracy": 0,
+                "practiceMinutes": 0,
+                "personalBest": {"wpm": 0, "accuracy": 0},
+                "currentStreak": 0,
+                "lastSessionDate": None,
+                "recentSessions": []
             }
-        })
-        
-    except Exception as e:
-        print(f"❌ Error in save_stats: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/process-text', methods=['POST'])
-def process_text():
-    """Process custom text for typing practice"""
-    try:
-        data = request.get_json()
-        
-        if not data or 'text' not in data:
-            return jsonify({'error': 'No text provided'}), 400
-        
-        text = data['text'].strip()
-        
-        if not text:
-            return jsonify({'error': 'Empty text provided'}), 400
-        
-        if len(text) > 50000:
-            return jsonify({'error': 'Text too long (max 50,000 characters)'}), 400
-        
-        return jsonify({
-            'success': True,
-            'message': 'Text processed successfully',
-            'items': [{
-                'id': 'custom-text',
-                'content': text,
-                'type': 'custom',
-                'metadata': {
-                    'length': len(text),
-                    'words': len(text.split()),
-                    'estimated_time': len(text) // 250,
-                    'processed_at': datetime.now().isoformat()
-                }
-            }]
-        })
-        
-    except Exception as e:
-        print(f"❌ Error in process_text: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/upload-pdf', methods=['POST'])
-def upload_pdf():
-    """Upload and process PDF files"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided in request'}), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not file.filename.lower().endswith('.pdf'):
-            return jsonify({'error': 'Only PDF files are supported'}), 400
-        
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-        
-        if file_size > app.config['MAX_CONTENT_LENGTH']:
-            return jsonify({'error': 'File too large (max 16MB)'}), 400
+            
+            with open(stats_file, 'w') as f:
+                json.dump(default_stats, f, indent=2)
+            
+            print("✅ JSON stats reset")
+            return jsonify({'success': True, 'message': 'Statistics reset successfully'})
+            
+        except Exception as e:
+            print(f"❌ Reset stats error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # =====================
+    # AUTHENTICATION ROUTES
+    # =====================
+    
+    @app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def register():
+        """User registration"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
+            email = data.get('email', '').strip().lower()
+            password = data.get('password', '')
+            display_name = data.get('display_name', '').strip()
+            
+            # Validation
+            if not email or '@' not in email:
+                return jsonify({'success': False, 'error': 'Valid email required'}), 400
+            
+            if not password or len(password) < 8:
+                return jsonify({'success': False, 'error': 'Password must be at least 8 characters'}), 400
+            
+            if app.config['USE_DATABASE']:
+                # Database implementation
+                try:
+                    # Check if user exists
+                    existing = database_client.table('users').select('*').eq('email', email).execute()
+                    
+                    if existing.data:
+                        return jsonify({'success': False, 'error': 'Email already registered'}), 400
+                    
+                    # Hash password
+                    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    
+                    # Create user
+                    user_data = {
+                        'email': email,
+                        'username': email.split('@')[0],
+                        'display_name': display_name or email.split('@')[0],
+                        'password_hash': password_hash,
+                        'is_anonymous': False
+                    }
+                    
+                    result = database_client.table('users').insert(user_data).execute()
+                    
+                    if result.data:
+                        user = result.data[0]
+                        
+                        # Generate JWT token
+                        token_payload = {
+                            'user_id': user['id'],
+                            'email': user['email'],
+                            'exp': datetime.utcnow() + timedelta(days=30)
+                        }
+                        token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm='HS256')
+                        
+                        return jsonify({
+                            'success': True,
+                            'token': token,
+                            'user': {
+                                'id': user['id'],
+                                'email': user['email'],
+                                'display_name': user['display_name'],
+                                'username': user['username']
+                            }
+                        })
+                    else:
+                        raise Exception("Failed to create user")
+                        
+                except Exception as e:
+                    print(f"⚠️ Database registration error: {e}")
+                    return jsonify({'success': False, 'error': 'Registration failed'}), 500
+            else:
+                # For JSON mode, just return success (no real user management)
+                return jsonify({
+                    'success': True,
+                    'token': 'demo-token',
+                    'user': {
+                        'id': 'demo-user',
+                        'email': email,
+                        'display_name': display_name or email.split('@')[0],
+                        'username': email.split('@')[0]
+                    }
+                })
+                
+        except Exception as e:
+            print(f"❌ Registration error: {e}")
+            return jsonify({'success': False, 'error': 'Registration failed'}), 500
+    
+    @app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def login():
+        """User login"""
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
+            
+            email = data.get('email', '').strip().lower()
+            password = data.get('password', '')
+            
+            if not email or not password:
+                return jsonify({'success': False, 'error': 'Email and password required'}), 400
+            
+            if app.config['USE_DATABASE']:
+                # Database implementation
+                try:
+                    # Find user
+                    user_result = database_client.table('users').select('*').eq('email', email).execute()
+                    
+                    if not user_result.data:
+                        return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+                    
+                    user = user_result.data[0]
+                    
+                    # Check password
+                    if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+                        return jsonify({'success': False, 'error': 'Invalid email or password'}), 401
+                    
+                    # Generate JWT token
+                    token_payload = {
+                        'user_id': user['id'],
+                        'email': user['email'],
+                        'exp': datetime.utcnow() + timedelta(days=30)
+                    }
+                    token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm='HS256')
+                    
+                    return jsonify({
+                        'success': True,
+                        'token': token,
+                        'user': {
+                            'id': user['id'],
+                            'email': user['email'],
+                            'display_name': user['display_name'],
+                            'username': user['username']
+                        }
+                    })
+                    
+                except Exception as e:
+                    print(f"⚠️ Database login error: {e}")
+                    return jsonify({'success': False, 'error': 'Login failed'}), 500
+            else:
+                # For JSON mode, just return success (no real user management)
+                return jsonify({
+                    'success': True,
+                    'token': 'demo-token',
+                    'user': {
+                        'id': 'demo-user',
+                        'email': email,
+                        'display_name': email.split('@')[0],
+                        'username': email.split('@')[0]
+                    }
+                })
+                
+        except Exception as e:
+            print(f"❌ Login error: {e}")
+            return jsonify({'success': False, 'error': 'Login failed'}), 500
+    
+    @app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def logout():
+        """User logout"""
+        try:
+            # For now, just return success (token invalidation would be handled client-side)
+            return jsonify({'success': True, 'message': 'Logged out successfully'})
+        except Exception as e:
+            print(f"❌ Logout error: {e}")
+            return jsonify({'success': False, 'error': 'Logout failed'}), 500
+    
+    @app.route('/api/auth/profile', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_profile():
+        """Get user profile"""
+        try:
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return jsonify({'success': False, 'error': 'No valid token provided'}), 401
+            
+            token = auth_header.split(' ')[1]
+            
+            if app.config['USE_DATABASE']:
+                try:
+                    # Decode JWT token
+                    payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                    user_id = payload['user_id']
+                    
+                    # Get user from database
+                    user_result = database_client.table('users').select('*').eq('id', user_id).execute()
+                    
+                    if not user_result.data:
+                        return jsonify({'success': False, 'error': 'User not found'}), 404
+                    
+                    user = user_result.data[0]
+                    
+                    return jsonify({
+                        'success': True,
+                        'user': {
+                            'id': user['id'],
+                            'email': user['email'],
+                            'display_name': user['display_name'],
+                            'username': user['username']
+                        }
+                    })
+                    
+                except jwt.ExpiredSignatureError:
+                    return jsonify({'success': False, 'error': 'Token expired'}), 401
+                except jwt.InvalidTokenError:
+                    return jsonify({'success': False, 'error': 'Invalid token'}), 401
+                except Exception as e:
+                    print(f"⚠️ Profile error: {e}")
+                    return jsonify({'success': False, 'error': 'Failed to get profile'}), 500
+            else:
+                # For JSON mode, return demo user
+                return jsonify({
+                    'success': True,
+                    'user': {
+                        'id': 'demo-user',
+                        'email': 'demo@example.com',
+                        'display_name': 'Demo User',
+                        'username': 'demo'
+                    }
+                })
+                
+        except Exception as e:
+            print(f"❌ Profile error: {e}")
+            return jsonify({'success': False, 'error': 'Failed to get profile'}), 500
+    
+    # =====================
+    # DATABASE-SPECIFIC ROUTES
+    # =====================
+    
+    @app.route('/api/db-stats', methods=['GET', 'OPTIONS'])
+    @cross_origin()
+    def get_database_stats():
+        """Get statistics from database"""
+        if not app.config['USE_DATABASE']:
+            return jsonify({
+                'error': 'Database not enabled',
+                'mode': 'json_storage'
+            }), 400
         
         try:
-            import PyPDF2
-            
-            upload_path = os.path.join('uploads', file.filename)
-            os.makedirs('uploads', exist_ok=True)
-            file.save(upload_path)
-            
-            with open(upload_path, 'rb') as pdf_file:
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                text_content = ""
-                
-                for page_num, page in enumerate(pdf_reader.pages):
-                    try:
-                        page_text = page.extract_text()
-                        if page_text:
-                            text_content += page_text + "\n"
-                    except Exception as e:
-                        print(f"Error extracting page {page_num + 1}: {e}")
-            
-            try:
-                os.remove(upload_path)
-            except:
-                pass
-            
-            if not text_content.strip():
-                return jsonify({'error': 'Could not extract text from PDF'}), 400
+            # Get user statistics
+            stats_result = database_client.table('user_statistics').select('*').limit(1).execute()
+            sessions_result = database_client.table('typing_sessions').select('*').order('created_at', desc=True).limit(10).execute()
             
             return jsonify({
                 'success': True,
-                'message': f'Successfully processed PDF: {file.filename}',
-                'items': [{
-                    'id': f'pdf-{int(datetime.now().timestamp())}',
-                    'content': text_content.strip(),
-                    'type': 'pdf',
-                    'metadata': {
-                        'filename': file.filename,
-                        'pages': len(pdf_reader.pages),
-                        'length': len(text_content),
-                        'processed_at': datetime.now().isoformat()
-                    }
-                }]
+                'stats': stats_result.data,
+                'recent_sessions': sessions_result.data,
+                'timestamp': datetime.now().isoformat()
             })
             
-        except ImportError:
+        except Exception as e:
+            print(f"❌ Database stats error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/db-save-stats', methods=['POST', 'OPTIONS'])
+    @cross_origin()
+    def save_database_stats():
+        """Save statistics to database"""
+        if not app.config['USE_DATABASE']:
             return jsonify({
-                'success': False,
-                'error': 'PDF processing library not available',
-                'fallback': True
-            }), 500
+                'error': 'Database not enabled',
+                'mode': 'json_storage'
+            }), 400
+        
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'success': False, 'error': 'No data provided'}), 400
             
-    except Exception as e:
-        print(f"❌ Error in upload_pdf: {e}")
-        return jsonify({'error': f'PDF processing failed: {str(e)}'}), 500
+            # Validate session data
+            is_valid, error_msg = validate_session_data(data)
+            if not is_valid:
+                return jsonify({'success': False, 'error': error_msg}), 400
+            
+            # Save session to database
+            session_data = {
+                'user_id': data.get('userId', 'anonymous'),
+                'session_type': 'practice',
+                'content_type': 'custom',
+                'wpm': int(float(data['wpm'])),
+                'accuracy': int(float(data['accuracy'])),
+                'duration_seconds': float(data['duration']),
+                'characters_typed': data.get('characters', 0),
+                'errors_count': data.get('errors', 0),
+                'session_data': {
+                    'timestamp': datetime.now().isoformat(),
+                    'source': 'api_direct'
+                }
+            }
+            
+            result = database_client.table('typing_sessions').insert(session_data).execute()
+            
+            if result.data:
+                return jsonify({
+                    'success': True,
+                    'session_id': result.data[0]['id'],
+                    'message': 'Session saved to database'
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Failed to save session'}), 500
+                
+        except Exception as e:
+            print(f"❌ Database save error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # =====================
+    # ERROR HANDLERS
+    # =====================
+    
+    @app.errorhandler(404)
+    def not_found(error):
+        """Handle 404 errors with CORS"""
+        response = jsonify({
+            'error': 'Endpoint not found',
+            'status': 404,
+            'available_endpoints': [
+                '/api/health',
+                '/api/db-health',
+                '/api/upload-pdf',
+                '/api/process-text',
+                '/api/stats',
+                '/api/save-stats',
+                '/api/reset-stats',
+                '/api/auth/register',
+                '/api/auth/login',
+                '/api/auth/logout',
+                '/api/auth/profile'
+            ]
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        return response, 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        """Handle 500 errors with CORS"""
+        response = jsonify({
+            'error': 'Internal server error',
+            'status': 500,
+            'message': 'Something went wrong on the server'
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        return response, 500
+    
+    @app.errorhandler(413)
+    def file_too_large(error):
+        """Handle file size errors"""
+        response = jsonify({
+            'error': 'File too large',
+            'status': 413,
+            'max_size': f"{app.config['MAX_CONTENT_LENGTH']} bytes"
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 413
+    
+    # =====================
+    # DEVELOPMENT ROUTES
+    # =====================
+    
+    if not is_production:
+        @app.route('/api/debug', methods=['GET', 'OPTIONS'])
+        @cross_origin()
+        def debug_info():
+            """Debug information for development"""
+            return jsonify({
+                'environment': 'development',
+                'config': {
+                    'USE_DATABASE': app.config['USE_DATABASE'],
+                    'MAX_CONTENT_LENGTH': app.config['MAX_CONTENT_LENGTH'],
+                    'SECRET_KEY_SET': bool(app.config['SECRET_KEY'])
+                },
+                'environment_vars': {
+                    'FLASK_ENV': os.environ.get('FLASK_ENV'),
+                    'SUPABASE_URL_SET': bool(os.environ.get('SUPABASE_URL')),
+                    'SUPABASE_ANON_KEY_SET': bool(os.environ.get('SUPABASE_ANON_KEY')),
+                    'RAILWAY_ENVIRONMENT': bool(os.environ.get('RAILWAY_ENVIRONMENT'))
+                },
+                'cors_origins': allowed_origins,
+                'timestamp': datetime.now().isoformat()
+            })
+    
+    return app
 
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
+# =====================
+# APPLICATION ENTRY POINT
+# =====================
 
-@app.errorhandler(413)
-def file_too_large(error):
-    return jsonify({'error': 'File too large (max 16MB)'}), 413
+# Create the Flask app
+app = create_app()
 
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Railway-optimized startup
 if __name__ == '__main__':
-    # Railway provides PORT environment variable
+    # Get configuration from environment
     port = int(os.environ.get('PORT', 5001))
+    host = os.environ.get('HOST', '0.0.0.0')
+    debug = os.environ.get('FLASK_ENV') != 'production'
     
-    print("🚀 TypeTutor Backend API - Railway Production")
-    print(f"   Port: {port}")
-    print(f"   Environment: {os.environ.get('FLASK_ENV', 'production')}")
-    print(f"   Host: 0.0.0.0 (Railway required)")
-    print(f"   CORS: Enabled with explicit origins")
-    print(f"   Auth endpoints: Embedded and available")
-    print(f"   Database: {'Configured' if app.config.get('SUPABASE_URL') else 'Not configured'}")
-    print(f"   Max file size: {app.config['MAX_CONTENT_LENGTH'] / (1024*1024)}MB")
+    print(f"\n🚀 TypeTutor Backend Starting")
+    print(f"📍 Host: {host}")
+    print(f"🔌 Port: {port}")
+    print(f"🔧 Debug: {debug}")
+    print(f"🌍 Environment: {os.environ.get('FLASK_ENV', 'development')}")
+    print(f"🗄️  Database: {'Enabled' if app.config['USE_DATABASE'] else 'JSON Fallback'}")
+    print(f"🚂 Railway: {'Yes' if os.environ.get('RAILWAY_ENVIRONMENT') else 'No'}")
     
-    # CRITICAL: Must bind to 0.0.0.0 for Railway
-    app.run(
-        host='0.0.0.0',  # Essential for Railway deployment
-        port=port,
-        debug=False  # Production mode
-    )
+    print(f"\n📡 Available endpoints:")
+    print(f"   • Health: http://{host}:{port}/api/health")
+    print(f"   • Database: http://{host}:{port}/api/db-health")
+    print(f"   • Upload: http://{host}:{port}/api/upload-pdf")
+    print(f"   • Stats: http://{host}:{port}/api/stats")
+    print(f"   • Auth: http://{host}:{port}/api/auth/register")
+    
+    if not app.config.get('USE_DATABASE'):
+        print(f"\n⚠️  Running in JSON storage mode")
+        print(f"   To enable database: set USE_DATABASE=true")
+    
+    print(f"\n🎯 CORS configured for:")
+    for origin in app.config.get('CORS_ORIGINS', ['*']):
+        print(f"   • {origin}")
+    
+    print(f"\n" + "="*50)
+    print(f"🌟 TypeTutor Backend Ready! 🌟")
+    print(f"="*50 + "\n")
+    
+    try:
+        app.run(
+            host=host,
+            port=port,
+            debug=debug,
+            use_reloader=False,  # Disable reloader for production
+            threaded=True
+        )
+    except KeyboardInterrupt:
+        print(f"\n👋 TypeTutor Backend shutting down...")
+    except Exception as e:
+        print(f"\n❌ Failed to start server: {e}")
+        traceback.print_exc()

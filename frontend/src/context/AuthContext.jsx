@@ -8,10 +8,10 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Use Railway production API URL
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://perceptive-blessing-production.up.railway.app/api';
+  // Use environment variable with fallback - this will be replaced at build time
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
-  console.log('🔗 AuthContext using Railway API:', API_BASE_URL);
+  console.log('🔗 AuthContext using API:', API_BASE_URL);
 
   // Initialize authentication state
   useEffect(() => {
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      console.log('🔐 Attempting login to Railway backend:', `${API_BASE_URL}/auth/login`);
+      console.log('🔐 Attempting login to backend:', `${API_BASE_URL}/auth/login`);
       
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -103,7 +103,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      console.log('📝 Attempting registration to Railway backend:', `${API_BASE_URL}/auth/register`);
+      console.log('📝 Attempting registration to backend:', `${API_BASE_URL}/auth/register`);
       
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
